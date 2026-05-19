@@ -1,0 +1,51 @@
+import request from '../utils/request';
+
+// ==================== 班级相关 ====================
+
+// 获取学生加入的班级列表
+export const getMyJoinedClasses = () => request.get('/class/my-joined');
+
+// 学生加入班级
+export const joinClass = (data) => request.post('/class/join', data);
+
+// 获取班级详情
+export const getClassInfo = (classId) => request.get(`/class/info/${classId}`);
+
+// ==================== 视频相关 ====================
+
+// 获取视频详情（包含分段和题目）
+export const getVideoDetail = (videoId) => request.get(`/video/getDetail/${videoId}`);
+
+// 获取班级视频任务列表
+export const getVideoTasks = (classId) => request.get(`/video/getTasks/${classId}`);
+
+// ==================== 行为统计相关 ====================
+
+// 获取班级内视频观看进度
+export const getClassProgress = (classId, status) =>
+  request.get(`/behavior/class-progress/${classId}/${status}`);
+
+// 提交答题记录
+export const submitAnswer = (data) => request.post('/behavior/answer', data);
+
+// ==================== 统计分析相关 ====================
+
+// 获取学生个人学情统计
+export const getStudentStat = (videoId) => request.get(`/stat/student/${videoId}`);
+
+// ==================== AI助手相关 ====================
+
+// 智能对话助手
+export const chatWithAgent = (data) => request.post('/agent/chat', data);
+
+// 获取聊天历史记录
+export const getChatHistory = (params) => request.get('/agent/history', { params });
+
+// 生成学情报告
+export const generateReport = (data) => request.post('/agent/report', data);
+
+// 获取学习报告
+export const getReport = (params) => request.get('/agent/report', { params });
+
+// 生成习题（AI生成）
+export const generateQuiz = (data) => request.post('/agent/quiz', data);

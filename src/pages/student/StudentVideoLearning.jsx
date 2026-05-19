@@ -1,0 +1,688 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { message } from 'antd';
+import request from '../../utils/request';
+
+// V1 video-play.html 完整逻辑
+const StudentVideoLearning = () => {
+  const { classId, videoId } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const videoRef = useRef(null);
+
+  // 视频状态
+  const [videoSrc, setVideoSrc] = useState('');
+  const [videoTitle, setVideoTitle] = useState('加载中...');
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showPlayBtn, setShowPlayBtn] = useState(true);
+
+  // 进度
+  const [currentTime, setCurrentTime] = useState(0);
+  const [progressPercent, setProgressPercent] = useState(0);
+
+  // 互动节点
+  const [interactionNodes, setInteractionNodes] = useState([]);
+  const [triggeredNodes, setTriggeredNodes] = useState([]);
+  const [answeredSegments, setAnsweredSegments] = useState([]);
+
+  // 答题状态
+  const [currentQuestion, setCurrentQuestion] = useState(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [showAnswerResult, setShowAnswerResult] = useState(false);
+  const [isAnswerCorrect, setIsAnswerCorrect] = useState(false);
+  const [serverAnalysis, setServerAnalysis] = useState('');
+
+  // 弹窗控制
+  const [showInteractionConfirm, setShowInteractionConfirm] = useState(false);
+  const [showQuestionPopup, setShowQuestionPopup] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [showSpeedOptions, setShowSpeedOptions] = useState(false);
+
+  // 播放速度
+  const [playbackSpeed, setPlaybackSpeed] = useState('1.0×');
+
+  // 互动控制
+  const [enableInteraction, setEnableInteraction] = useState(true);
+
+  // 学习记录
+  const studyRecordRef = useRef({
+    videoId: null,
+    classId: null,
+    startTime: '',
+    correctAnswers: 0,
+    wrongAnswers: 0,
+    maxPosition: 0,
+    currentSegmentIndex: -1,
+  });
+
+  const questionStartTimeRef = useRef(0);
+  const recordTimerRef = useRef(null);
+  const nodeCheckDoneRef = useRef({});
+
+  // ========== 工具函数 ==========
+  const formatTime = (seconds) => {
+    if (seconds > 100000) seconds = seconds / 1000;
+    if (!seconds || isNaN(seconds)) return '00:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const getCurrentTimeStr = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+  };
+
+  const getCurrentSegmentIndex = useCallback((currentTimeMs) => {
+    for (let i = interactionNodes.length - 1; i >= 0; i--) {
+      if (currentTimeMs >= interactionNodes[i].start) return i;
+    }
+    return -1;
+  }, [interactionNodes]);
+
+  // ========== API ==========
+  const fetchWithAuth = useCallback(async (url, options = {}) => {
+    const method = options.method || 'GET';
+    const body = options.body;
+    try {
+      const res = await request({ method, url, data: body });
+      return res;
+    } catch (err) {
+      console.error('请求失败:', err);
+      return { code: -1, data: null, msg: '网络错误' };
+    }
+  }, []);
+
+  // ========== 行为记录 ==========
+  const recordAction = useCallback((action, data = {}) => {
+    const record = studyRecordRef.current;
+    if (!record.videoId) return;
+    const currentSec = Math.floor(currentTime / 1000);
+    const segIdx = getCurrentSegmentIndex(currentTime * 1000);
+    const segmentId = segIdx >= 0 ? interactionNodes[segIdx]?.segmentId : 0;
+
+    if ((action === 'pause' || action === 'replay') && record.videoId) {
+      fetchWithAuth('/api/v1/behavior/record', {
+        method: 'POST',
+        body: {
+          video_id: record.videoId,
+          segment_id: segmentId,
+          event: action,
+          duration: currentTime * 1000,
+        },
+      }).catch(() => {});
+    }
+  }, [currentTime, fetchWithAuth, getCurrentSegmentIndex, interactionNodes]);
+
+  const uploadStudyRecord = useCallback(async () => {
+    const record = studyRecordRef.current;
+    if (!record.videoId) return;
+    try {
+      const statRes = await fetchWithAuth(`/api/v1/stat/student/${record.videoId}`);
+      if (statRes?.data?.status === 'finished') return;
+    } catch (e) { /* ignore */ }
+    fetchWithAuth('/api/v1/behavior/update-progress', {
+      method: 'POST',
+      body: { video_id: record.videoId, current_sec: Math.floor(currentTime) },
+    }).catch(() => {});
+  }, [currentTime, fetchWithAuth]);
+
+  // ========== 加载视频数据 ==========
+  useEffect(() => {
+    if (videoId) loadVideoData();
+  }, [videoId]);
+
+  const loadVideoData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await request.get(`/video/getDetail/${videoId}`);
+      if ((res.code === 0 || res.code === 200) && res.data) {
+        processVideoData(res.data);
+      }
+    } catch (err) {
+      console.error('加载视频失败:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatOptions = (options) => {
+    if (!options) return [];
+    if (Array.isArray(options)) {
+      return options.map((opt, i) => {
+        if (typeof opt === 'string') return { id: i, letter: String.fromCharCode(65 + i), text: opt };
+        return { id: i, letter: opt.letter || opt.label || String.fromCharCode(65 + i), text: opt.text || opt.option || opt.content || String(opt) };
+      });
+    }
+    return [];
+  };
+
+  const getAnswerIndex = (options, answer) => {
+    if (!options || answer === undefined || answer === null) return 0;
+    const answerStr = String(answer).toUpperCase();
+    if (typeof answer === 'number') return answer;
+    if (/^\d+$/.test(answerStr)) return parseInt(answerStr);
+    for (let i = 0; i < options.length; i++) {
+      const opt = options[i];
+      if (typeof opt === 'string') { if (opt.toUpperCase() === answerStr) return i; }
+      else { if ((opt.label || '').toUpperCase() === answerStr || (opt.letter || '').toUpperCase() === answerStr) return i; }
+    }
+    const letterIndex = answerStr.charCodeAt(0) - 65;
+    return (letterIndex >= 0 && letterIndex < options.length) ? letterIndex : 0;
+  };
+
+  const processVideoData = (videoData) => {
+    const possibleUrlFields = ['url', 'play_url', 'video_url', 'videoUrl', 'src', 'video_src'];
+    let videoUrl = '';
+    for (const field of possibleUrlFields) {
+      if (videoData[field]) { videoUrl = videoData[field]; break; }
+    }
+    setVideoSrc(videoUrl);
+
+    let duration = videoData.duration || 0;
+    if (duration < 10000) duration = duration * 1000;
+    setVideoDuration(duration);
+
+    const title = searchParams.get('title') || videoData.title || videoData.name || '视频课程';
+    setVideoTitle(decodeURIComponent(title));
+
+    // 处理互动节点
+    const segmentsData = videoData.segments || videoData.segment_list || [];
+    const nodes = [];
+    if (segmentsData && Array.isArray(segmentsData) && segmentsData.length > 0) {
+      segmentsData.forEach((seg, index) => {
+        const questionData = seg.question || seg.questions || seg.problem || seg.quiz || null;
+        if (questionData) {
+          const startMs = seg.start || seg.start_time || 0;
+          const endMs = seg.end || seg.end_time || (seg.start || seg.start_time || 0) + 300000;
+          const triggerTimeMs = endMs - 1000;
+          const progressPct = duration > 0 ? (triggerTimeMs / duration) * 100 : 0;
+          const options = formatOptions(questionData.options);
+          const answerIdx = getAnswerIndex(questionData.options, questionData.answer || questionData.correct_answer || 0);
+
+          nodes.push({
+            id: seg.id || index,
+            segmentId: seg.id || seg.segment_id,
+            start: startMs,
+            end: endMs,
+            time: triggerTimeMs / 1000,
+            progressPercent: progressPct,
+            question: {
+              id: questionData.id || seg.id || seg.segment_id,
+              title: questionData.content || questionData.title || questionData.text || questionData.question || '题目内容',
+              options,
+              answerIndex: answerIdx,
+              analysis: questionData.analysis || questionData.explanation || '',
+              knowledge: questionData.knowledge || questionData.knowledge_point || '',
+            },
+          });
+        }
+      });
+    }
+    setInteractionNodes(nodes);
+
+    const now = getCurrentTimeStr();
+    studyRecordRef.current = {
+      videoId: parseInt(videoId),
+      classId,
+      startTime: now,
+      correctAnswers: 0,
+      wrongAnswers: 0,
+      maxPosition: 0,
+      currentSegmentIndex: -1,
+    };
+
+    // 启动学习计时
+    recordTimerRef.current = setInterval(() => {
+      if (videoRef.current && !videoRef.current.paused) {
+        studyRecordRef.current.maxPosition = Math.max(
+          studyRecordRef.current.maxPosition,
+          videoRef.current.currentTime
+        );
+      }
+    }, 1000);
+  };
+
+  // ========== 视频事件处理 ==========
+  const handlePlay = () => {
+    setIsPlaying(true);
+    setShowPlayBtn(false);
+    setIsLoading(false);
+    recordAction('play');
+  };
+
+  const handlePause = () => {
+    setIsPlaying(false);
+    recordAction('pause');
+  };
+
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const rawTime = video.currentTime;
+    const currentTimeMs = rawTime > 100000 ? rawTime : Math.floor(rawTime * 1000);
+    const rawDuration = video.duration || 0;
+    const durationMs = rawDuration > 100000 ? rawDuration : Math.floor(rawDuration * 1000);
+    const progress = durationMs > 0 ? (currentTimeMs / durationMs) * 100 : 0;
+
+    setCurrentTime(currentTimeMs);
+    if (durationMs > 0 && videoDuration === 0) setVideoDuration(durationMs);
+    setProgressPercent(progress);
+
+    // 检查互动节点
+    if (enableInteraction && !showQuestionPopup && !showInteractionConfirm) {
+      for (let i = 0; i < interactionNodes.length; i++) {
+        const node = interactionNodes[i];
+        const triggerTimeMs = node.time * 1000;
+        const timeDiff = Math.abs(currentTimeMs - triggerTimeMs);
+        const key = `${videoId}_${node.id}`;
+
+        if (timeDiff <= 1500 && !triggeredNodes.includes(node.id) && !answeredSegments.includes(node.segmentId) && !nodeCheckDoneRef.current[key]) {
+          nodeCheckDoneRef.current[key] = true;
+          video.pause();
+          triggerInteraction(node, i);
+          break;
+        }
+      }
+    }
+  };
+
+  const handleVideoEnd = () => {
+    setIsPlaying(false);
+    setShowPlayBtn(true);
+    setShowCompletion(true);
+    recordAction('end');
+
+    const record = studyRecordRef.current;
+    if (!record.videoId) return;
+    const durationMs = videoDuration;
+    fetchWithAuth('/api/v1/behavior/update-progress', {
+      method: 'POST',
+      body: { video_id: record.videoId, current_sec: Math.floor(durationMs / 1000) },
+    }).catch(() => {});
+  };
+
+  // ========== 互动触发 ==========
+  const triggerInteraction = (node, index) => {
+    setTriggeredNodes((prev) => [...prev, node.id]);
+    const qData = node.question || {};
+    setCurrentQuestionIndex(index);
+    setCurrentQuestion({
+      id: qData.id || node.id,
+      title: qData.title || '题目内容',
+      options: qData.options || [],
+      answerIndex: qData.answerIndex || 0,
+      analysis: qData.analysis || '',
+      knowledge: qData.knowledge || '',
+      segmentId: node.segmentId,
+      segmentStart: node.start,
+      segmentEnd: node.end,
+    });
+    setSelectedAnswer(null);
+    setShowAnswerResult(false);
+    setIsAnswerCorrect(false);
+    setServerAnalysis('');
+    questionStartTimeRef.current = Date.now();
+
+    if (enableInteraction) {
+      setShowQuestionPopup(true);
+    } else {
+      setShowInteractionConfirm(true);
+    }
+  };
+
+  // ========== 答题提交 ==========
+  const submitAnswerToServer = async (timeCost) => {
+    const question = currentQuestion;
+    if (!question || !studyRecordRef.current.videoId) return;
+    const answerLetter = question.options[selectedAnswer]?.letter || String.fromCharCode(65 + selectedAnswer);
+
+    try {
+      const res = await fetchWithAuth('/api/v1/question/answer', {
+        method: 'POST',
+        body: {
+          video_id: studyRecordRef.current.videoId,
+          studentanswers: [{
+            question_id: question.id,
+            answer: answerLetter,
+            time_cost: timeCost,
+          }],
+        },
+      });
+      if (res && (res.code === 0 || res.code === 200) && res.data?.results?.[0]) {
+        const result = res.data.results[0];
+        if (result.analysis) setServerAnalysis(result.analysis);
+      }
+    } catch (err) {
+      console.error('提交答案失败:', err);
+    }
+  };
+
+  const submitPopupAnswer = () => {
+    if (selectedAnswer === null) { message.info('请先选择答案'); return; }
+    const timeCost = Date.now() - questionStartTimeRef.current;
+    const correct = selectedAnswer === currentQuestion.answerIndex;
+
+    setShowAnswerResult(true);
+    setIsAnswerCorrect(correct);
+
+    const record = studyRecordRef.current;
+    if (correct) record.correctAnswers++; else record.wrongAnswers++;
+
+    // 标记已回答
+    setAnsweredSegments((prev) => prev.includes(currentQuestion.segmentId) ? prev : [...prev, currentQuestion.segmentId]);
+
+    submitAnswerToServer(timeCost);
+
+    // 自动关闭弹窗并继续播放
+    setTimeout(() => {
+      setShowQuestionPopup(false);
+      setSelectedAnswer(null);
+      setShowAnswerResult(false);
+      if (videoRef.current) videoRef.current.play();
+    }, 1500);
+  };
+
+  const closeQuestionPopup = () => {
+    if (currentQuestion?.segmentId) {
+      setAnsweredSegments((prev) => prev.includes(currentQuestion.segmentId) ? prev : [...prev, currentQuestion.segmentId]);
+    }
+    setShowQuestionPopup(false);
+    setSelectedAnswer(null);
+    setShowAnswerResult(false);
+    if (videoRef.current) videoRef.current.pause();
+  };
+
+  const confirmInteraction = () => {
+    const idx = currentQuestionIndex;
+    if (idx >= 0 && idx < interactionNodes.length) {
+      const newTriggered = [...triggeredNodes];
+      if (!newTriggered.includes(interactionNodes[idx].id)) {
+        newTriggered.push(interactionNodes[idx].id);
+      }
+      setTriggeredNodes(newTriggered);
+    }
+    setShowInteractionConfirm(false);
+    setSelectedAnswer(null);
+    setShowAnswerResult(false);
+    setShowQuestionPopup(true);
+  };
+
+  const cancelInteraction = () => {
+    if (currentQuestion?.segmentId) {
+      setAnsweredSegments((prev) => prev.includes(currentQuestion.segmentId) ? prev : [...prev, currentQuestion.segmentId]);
+    }
+    setShowInteractionConfirm(false);
+    if (videoRef.current) videoRef.current.pause();
+  };
+
+  // ========== 视频控制 ==========
+  const togglePlay = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) { video.play(); } else { video.pause(); }
+  };
+
+  const tapProgressBar = (e) => {
+    const video = videoRef.current;
+    if (!video || !videoDuration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const percent = (e.clientX - rect.left) / rect.width;
+    const seekTime = percent * (videoDuration / 1000);
+    video.currentTime = seekTime;
+  };
+
+  const selectSpeed = (speed) => {
+    setPlaybackSpeed(speed);
+    setShowSpeedOptions(false);
+    if (videoRef.current) videoRef.current.playbackRate = parseFloat(speed);
+  };
+
+  const toggleInteraction = () => {
+    setEnableInteraction((prev) => {
+      message.info(prev ? '已关闭互动' : '已开启互动');
+      return !prev;
+    });
+  };
+
+  const replayVideo = () => {
+    setShowCompletion(false);
+    setShowPlayBtn(false);
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play();
+    }
+  };
+
+  const openAI = () => {
+    if (videoRef.current && !videoRef.current.paused) videoRef.current.pause();
+    navigate(`/student/chat?videoId=${videoId}&videoTitle=${encodeURIComponent(videoTitle)}&currentTime=${encodeURIComponent(formatTime(currentTime / 1000))}&videoDuration=${videoDuration}`);
+  };
+
+  // ========== 返回处理 ==========
+  const goBack = async () => {
+    const record = studyRecordRef.current;
+    if (!record.videoId || !videoRef.current || videoRef.current.currentTime <= 0) {
+      navigate(-1);
+      return;
+    }
+    try {
+      const statRes = await fetchWithAuth(`/api/v1/stat/student/${record.videoId}`);
+      if (statRes?.data?.status !== 'finished') {
+        fetchWithAuth('/api/v1/behavior/update-progress', {
+          method: 'POST',
+          body: { video_id: record.videoId, current_sec: Math.floor(videoRef.current.currentTime) },
+        }).catch(() => {});
+      }
+    } catch (e) {
+      fetchWithAuth('/api/v1/behavior/update-progress', {
+        method: 'POST',
+        body: { video_id: record.videoId, current_sec: Math.floor(videoRef.current.currentTime) },
+      }).catch(() => {});
+    }
+    navigate(-1);
+  };
+
+  // 页面卸载清理
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      uploadStudyRecord();
+    };
+  }, []);
+
+  // ========== 渲染 ==========
+  const completionRate = videoDuration > 0 ? Math.min(100, Math.round((currentTime / videoDuration) * 100)) : 0;
+  const totalQuestions = studyRecordRef.current.correctAnswers + studyRecordRef.current.wrongAnswers;
+  const correctAnswers = studyRecordRef.current.correctAnswers;
+
+  return (
+    <div className="video-play-container">
+      {/* 导航栏 */}
+      <div className="video-nav-bar">
+        <div className="video-nav-back" onClick={goBack}>←</div>
+        <div className="video-nav-title">{videoTitle}</div>
+        <div className="video-nav-right" />
+      </div>
+
+      {/* 视频区域 */}
+      <div className="video-section-v1" onClick={togglePlay}>
+        {isLoading && (
+          <div className="video-placeholder-v1">
+            <div className="video-spinner-v1" />
+            <div className="video-loading-text-v1">正在加载视频...</div>
+          </div>
+        )}
+        <video
+          ref={videoRef}
+          className="video-player-v1"
+          src={videoSrc}
+          preload="auto"
+          playsInline
+          webkit-playsinline="true"
+          onPlay={handlePlay}
+          onPause={handlePause}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleVideoEnd}
+          onCanPlay={() => { setIsLoading(false); }}
+          onWaiting={() => setIsLoading(true)}
+        />
+        {showPlayBtn && !isPlaying && !isLoading && (
+          <div className="video-cover-v1" onClick={(e) => { e.stopPropagation(); videoRef.current?.play(); }}>
+            <div className="play-btn-large-v1">▶</div>
+          </div>
+        )}
+      </div>
+
+      {/* 进度条控制区域 */}
+      <div className="progress-control-bar-v1">
+        <div className="progress-row-v1">
+          <span className="time-info-v1">{formatTime(currentTime / 1000)}</span>
+          <div className="progress-track-wrapper-v1" onClick={tapProgressBar}>
+            <div className="progress-fill-v1" style={{ width: `${progressPercent}%` }} />
+            {interactionNodes.map((node, i) => (
+              <div
+                key={i}
+                className={`progress-node-v1 ${triggeredNodes.includes(node.id) ? 'triggered' : ''} ${answeredSegments.includes(node.segmentId) ? 'answered' : ''}`}
+                style={{ left: `${node.progressPercent}%` }}
+                title={formatTime(node.time)}
+              />
+            ))}
+            <div className="progress-thumb-v1" style={{ left: `${progressPercent}%` }} />
+          </div>
+          <span className="time-info-v1">{formatTime(videoDuration / 1000)}</span>
+        </div>
+        <div className="control-row-v1">
+          <div className="control-left-v1">
+            <div className="control-btn-v1 play-pause-btn-v1" onClick={togglePlay}>
+              <span>{isPlaying ? '❚❚' : '▶'}</span>
+            </div>
+          </div>
+          <div className="control-right-v1">
+            <div className="control-btn-v1 speed-btn-v1" onClick={() => setShowSpeedOptions(!showSpeedOptions)}>
+              <span>{playbackSpeed}</span>
+            </div>
+            <div
+              className={`control-btn-v1 interaction-toggle-v1 ${enableInteraction ? 'active' : ''}`}
+              onClick={toggleInteraction}
+            >
+              <span>弹</span>
+            </div>
+            <div className="ai-float-btn-v1" onClick={openAI}>
+              <span>🤖</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 速度选择面板 */}
+      {showSpeedOptions && (
+        <div className="speed-selector-v1">
+          <div className="speed-list-v1">
+            {['0.5×', '0.75×', '1.0×', '1.25×', '1.5×', '2.0×'].map((s) => (
+              <div key={s} className={`speed-item-v1 ${playbackSpeed === s ? 'active' : ''}`} onClick={() => selectSpeed(s)}>{s}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 互动答题弹窗 */}
+      {showQuestionPopup && currentQuestion && (
+        <div className="quiz-popup-overlay-v1" onClick={closeQuestionPopup}>
+          <div className="quiz-popup-box-v1" onClick={(e) => e.stopPropagation()}>
+            <div className="quiz-popup-header-v1">
+              <span className="quiz-popup-title-v1">互动答题</span>
+              <span className="quiz-close-btn-v1" onClick={closeQuestionPopup}>✕</span>
+            </div>
+            <div className="quiz-question-v1">{currentQuestion.title}</div>
+            <div className="quiz-options-v1">
+              {(currentQuestion.options || []).map((opt, i) => {
+                let cls = 'quiz-option-v1';
+                if (selectedAnswer === i) cls += ' selected';
+                if (showAnswerResult && i === currentQuestion.answerIndex) cls += ' correct';
+                if (showAnswerResult && selectedAnswer === i && i !== currentQuestion.answerIndex) cls += ' wrong';
+                return (
+                  <div
+                    key={i}
+                    className={cls}
+                    onClick={() => { if (!showAnswerResult) setSelectedAnswer(i); }}
+                  >
+                    <div className="quiz-option-letter-v1">{opt.letter}</div>
+                    <span className="quiz-option-text-v1">{opt.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {showAnswerResult && (
+              <div className="quiz-result-v1">
+                <div className={`result-message-v1 ${isAnswerCorrect ? 'success' : 'error'}`}>
+                  {isAnswerCorrect ? '✓ 回答正确！' : `✗ 回答错误，正确答案是 ${currentQuestion.options[currentQuestion.answerIndex]?.letter || ''}`}
+                </div>
+                {!isAnswerCorrect && (serverAnalysis || currentQuestion.analysis) && (
+                  <div className="quiz-analysis-v1">{serverAnalysis || currentQuestion.analysis}</div>
+                )}
+              </div>
+            )}
+            <div className="quiz-actions-v1">
+              <div
+                className={`quiz-submit-btn-v1 ${selectedAnswer !== null && !showAnswerResult ? 'active' : 'disabled'}`}
+                onClick={submitPopupAnswer}
+              >
+                {showAnswerResult ? '已完成' : '提交答案'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 互动确认弹窗 */}
+      {showInteractionConfirm && (
+        <div className="popup-overlay-v1" onClick={cancelInteraction}>
+          <div className="popup-box-v1" onClick={(e) => e.stopPropagation()}>
+            <div className="popup-title-v1">是否进行互动?</div>
+            <div className="popup-desc-v1">视频将在互动点暂停，请回答问题</div>
+            <div className="popup-buttons-v1">
+              <div className="popup-btn-v1 cancel" onClick={cancelInteraction}>取消</div>
+              <div className="popup-btn-v1 confirm" onClick={confirmInteraction}>确认</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 视频完成遮罩层 */}
+      {showCompletion && (
+        <div className="completion-overlay-v1">
+          <div className="completion-box-v1">
+            <div className="completion-icon-v1">✓</div>
+            <div className="completion-title-v1">视频已播放完成</div>
+            <div className="completion-desc-v1">恭喜您完成了本次视频学习</div>
+            <div className="completion-stats-v1">
+              <div className="completion-stat-item-v1">
+                <span className="completion-stat-value-v1">{completionRate}%</span>
+                <span className="completion-stat-label-v1">完成度</span>
+              </div>
+              <div className="completion-stat-item-v1">
+                <span className="completion-stat-value-v1">{totalQuestions}</span>
+                <span className="completion-stat-label-v1">答题数</span>
+              </div>
+              <div className="completion-stat-item-v1">
+                <span className="completion-stat-value-v1">{correctAnswers}</span>
+                <span className="completion-stat-label-v1">正确数</span>
+              </div>
+            </div>
+            <div className="completion-actions-v1">
+              <div className="completion-btn-v1 replay" onClick={replayVideo}>重新播放</div>
+              <div className="completion-btn-v1 analysis" onClick={() => navigate(`/student/report?videoId=${videoId}&title=${encodeURIComponent(videoTitle)}`)}>查看学情分析</div>
+              <div className="completion-btn-v1 quiz" onClick={() => navigate(`/student/practice?videoId=${videoId}&title=${encodeURIComponent(videoTitle)}`)}>个性练习</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default StudentVideoLearning;
