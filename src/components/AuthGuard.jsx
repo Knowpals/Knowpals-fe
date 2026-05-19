@@ -10,7 +10,7 @@ const AuthGuard = ({ children, allowedRole }) => {
   }
 
   if (allowedRole && role !== allowedRole) {
-    const fallback = role === 'teacher' ? '/teacher/home' : '/student/home';
+    const fallback = role === 'teacher' ? '/home' : '/student/home';
     return <Navigate to={fallback} replace />;
   }
 

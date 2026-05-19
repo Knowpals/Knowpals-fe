@@ -1,3 +1,4 @@
+import { Route } from 'react-router-dom';
 import AuthGuard from '../components/AuthGuard';
 import StudentHome from '../pages/student/StudentHome';
 import StudentLearn from '../pages/student/StudentLearn';
