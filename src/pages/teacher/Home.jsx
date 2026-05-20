@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Tag, Button, Spin } from 'antd';
 import { ClockCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
-import { getMyUploadedVideos, getMyCreatedClasses } from '../services/api';
+import MainLayout from '../../layouts/TeacherLayout';
+import { getMyUploadedVideos, getMyCreatedClasses } from '../../services/teacherApi';
 
 const Home = () => {
   const navigate = useNavigate();

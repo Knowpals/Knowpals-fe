@@ -50,7 +50,7 @@ request.interceptors.response.use(
       console.error('请求错误:', status, data);
       if (status === 401) {
         localStorage.removeItem('token');
-        window.location.href = '/login';
+        window.location.href = '/';
       }
       // 保留完整的错误对象，包含 response 信息
       return Promise.reject({

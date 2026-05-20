@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Form, Button, Modal, Card, message, Space, Spin, Input } from 'antd';
 import { PlusOutlined, CopyOutlined, SyncOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
-import { createClass, getMyCreatedClasses } from '../services/api';
+import MainLayout from '../../layouts/TeacherLayout';
+import { createClass, getMyCreatedClasses } from '../../services/teacherApi';
 
 const ClassManagement = () => {
   const navigate = useNavigate();

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Checkbox, message, Spin } from 'antd';
+import { Form, Input, Button, Checkbox, message, Spin, Segmented } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined, SafetyOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { register, sendCode } from '../services/api';
+import { register, sendCode } from '../services/authApi';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -10,8 +10,8 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [role, setRole] = useState('student');
 
-  // 发送验证码
   const handleSendCode = async () => {
     const email = form.getFieldValue('email');
     if (!email) {
@@ -39,7 +39,6 @@ const Register = () => {
     }
   };
 
-  // 注册提交
   const onFinish = async (values) => {
     setLoading(true);
     try {
@@ -48,7 +47,7 @@ const Register = () => {
         email: values.email,
         password: values.password,
         code: values.verify_code,
-        role: 'teacher',
+        role: role,
       });
       message.success('注册成功！请登录');
       navigate('/');
@@ -68,8 +67,21 @@ const Register = () => {
           知伴<span>AI</span>
         </div>
 
-        <div style={{ textAlign: 'center', marginBottom: 24, color: '#374151', fontWeight: 500 }}>
+        <div style={{ textAlign: 'center', marginBottom: 12, color: '#374151', fontWeight: 500 }}>
           注册新账号
+        </div>
+
+        <div style={{ marginBottom: 20, textAlign: 'center' }}>
+          <Segmented
+            value={role}
+            onChange={setRole}
+            options={[
+              { label: '学生端', value: 'student' },
+              { label: '教师端', value: 'teacher' },
+            ]}
+            size="large"
+            style={{ background: '#f3f4f6', padding: 4 }}
+          />
         </div>
 
         <Form

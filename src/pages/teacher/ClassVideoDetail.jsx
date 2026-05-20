@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Form, Select, Button, Space, Spin, message } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
-import { getVideoDetail, getVideoTasks } from '../services/api';
+import MainLayout from '../../layouts/TeacherLayout';
+import { getVideoDetail, getVideoTasks } from '../../services/teacherApi';
 
 const { Option } = Select;
 

@@ -5,9 +5,9 @@ import {
 } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
+import MainLayout from '../../layouts/TeacherLayout';
 import ReactECharts from 'echarts-for-react';
-import { getMyCreatedClasses, getClassStat, getVideoTasks } from '../services/api';
+import { getMyCreatedClasses, getClassStat, getVideoTasks } from '../../services/teacherApi';
 
 const { Option } = Select;
 

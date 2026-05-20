@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Form, Select, Card, Progress, Tag, Spin } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
-import { getStudentStat, getVideoTasks } from '../services/api';
+import MainLayout from '../../layouts/TeacherLayout';
+import { getStudentStat, getVideoTasks } from '../../services/teacherApi';
 
 const { Option } = Select;
 

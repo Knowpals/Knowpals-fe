@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Spin } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
-import { getMyUploadedVideos } from '../services/api';
+import MainLayout from '../../layouts/TeacherLayout';
+import { getMyUploadedVideos } from '../../services/teacherApi';
 
 const PendingReview = () => {
   const navigate = useNavigate();

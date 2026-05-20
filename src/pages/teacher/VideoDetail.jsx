@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Button, Space, Spin, message } from 'antd';
 import { PlayCircleOutlined, EditOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
-import { getVideoDetail } from '../services/api';
+import MainLayout from '../../layouts/TeacherLayout';
+import { getVideoDetail } from '../../services/teacherApi';
 
 const VideoDetail = () => {
   const navigate = useNavigate();

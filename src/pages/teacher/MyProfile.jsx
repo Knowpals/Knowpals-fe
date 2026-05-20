@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, message, Spin } from 'antd';
-import MainLayout from '../components/MainLayout';
-import { getUserInfo } from '../services/api';
+import MainLayout from '../../layouts/TeacherLayout';
+import { getUserInfo } from '../../services/authApi';
 
 const MyProfile = () => {
   const [form] = Form.useForm();

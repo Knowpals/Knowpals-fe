@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Modal, Table, Card, message, Space, Spin } from 'antd';
 import { PlusOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
-import { getClassInfo, getClassStudents, getVideoTasks, joinClass } from '../services/api';
+import MainLayout from '../../layouts/TeacherLayout';
+import { getClassInfo, getClassStudents, getVideoTasks, joinClass } from '../../services/teacherApi';
 
 const ClassDetail = () => {
   const navigate = useNavigate();

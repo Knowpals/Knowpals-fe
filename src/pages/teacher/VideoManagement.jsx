@@ -6,8 +6,8 @@ import {
 } from 'antd';
 import { PlusOutlined, MoreOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
-import { getMyUploadedVideos, uploadVideo } from '../services/api';
+import MainLayout from '../../layouts/TeacherLayout';
+import { getMyUploadedVideos, uploadVideo } from '../../services/teacherApi';
 
 const { Text } = Typography;
 

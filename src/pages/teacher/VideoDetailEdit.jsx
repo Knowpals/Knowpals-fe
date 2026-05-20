@@ -5,8 +5,8 @@ import {
 } from 'antd';
 import { PlusOutlined, RobotOutlined, UploadOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import MainLayout from '../components/MainLayout';
-import { getVideoDetail, generateQuestions, postVideoToClass, getMyCreatedClasses, publishVideo, startVideoReview } from '../services/api';
+import MainLayout from '../../layouts/TeacherLayout';
+import { getVideoDetail, generateQuestions, postVideoToClass, getMyCreatedClasses, publishVideo, startVideoReview } from '../../services/teacherApi';
 
 const { TextArea } = Input;
 const { Text } = Typography;

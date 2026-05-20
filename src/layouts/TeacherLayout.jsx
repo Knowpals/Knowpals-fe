@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Avatar, Dropdown, Modal, message } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { 
-  HomeOutlined, 
-  VideoCameraOutlined, 
-  TeamOutlined, 
-  BarChartOutlined, 
+import {
+  HomeOutlined,
+  VideoCameraOutlined,
+  TeamOutlined,
+  BarChartOutlined,
   UserOutlined,
   ArrowLeftOutlined,
   LogoutOutlined,
@@ -14,7 +14,6 @@ import {
 
 const { Sider, Header, Content } = Layout;
 
-// 侧边栏导航配置
 const menuItems = [
   { key: '/home', label: '首页', icon: <HomeOutlined /> },
   { key: '/video-management', label: '视频管理', icon: <VideoCameraOutlined /> },
@@ -23,19 +22,18 @@ const menuItems = [
   { key: '/my', label: '我的', icon: <UserOutlined /> },
 ];
 
-const MainLayout = ({ children, pageTitle, showBack = false }) => {
+const TeacherLayout = ({ children, pageTitle, showBack = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const selectedKey = location.pathname;
   const [userInfo, setUserInfo] = useState({ username: '加载中...' });
 
-  // 获取用户信息
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
         const token = localStorage.getItem('token');
         if (token) {
-          const { getUserInfo } = await import('../services/api');
+          const { getUserInfo } = await import('../services/authApi');
           const res = await getUserInfo();
           setUserInfo({ username: res.data?.username || res.data?.name || '用户' });
         }
@@ -46,7 +44,6 @@ const MainLayout = ({ children, pageTitle, showBack = false }) => {
     fetchUserInfo();
   }, []);
 
-  // 退出登录
   const handleLogout = () => {
     Modal.confirm({
       title: '确认退出',
@@ -62,7 +59,6 @@ const MainLayout = ({ children, pageTitle, showBack = false }) => {
     });
   };
 
-  // 用户下拉菜单
   const userMenuItems = [
     {
       key: 'logout',
@@ -74,16 +70,15 @@ const MainLayout = ({ children, pageTitle, showBack = false }) => {
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#f9fafb' }}>
-      {/* 左侧固定侧边栏（全局复用） */}
       <Sider width={200} style={{ background: '#fff', boxShadow: '2px 0 8px rgba(0,0,0,0.05)' }}>
-        <div style={{ 
-          height: 64, 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          fontSize: 20, 
-          fontWeight: 700, 
-          color: '#7c3aed' 
+        <div style={{
+          height: 64,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 20,
+          fontWeight: 700,
+          color: '#7c3aed'
         }}>
           知伴AI
         </div>
@@ -97,12 +92,11 @@ const MainLayout = ({ children, pageTitle, showBack = false }) => {
       </Sider>
 
       <Layout>
-        {/* 顶部导航栏（全局复用） */}
-        <Header style={{ 
-          background: '#fff', 
-          padding: '0 24px', 
-          display: 'flex', 
-          alignItems: 'center', 
+        <Header style={{
+          background: '#fff',
+          padding: '0 24px',
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
           boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
           height: 64
@@ -120,7 +114,6 @@ const MainLayout = ({ children, pageTitle, showBack = false }) => {
           </Dropdown>
         </Header>
 
-        {/* 页面内容区 */}
         <Content style={{ padding: '24px', overflow: 'auto' }}>
           {children}
         </Content>
@@ -129,4 +122,4 @@ const MainLayout = ({ children, pageTitle, showBack = false }) => {
   );
 };
 
-export default MainLayout;
+export default TeacherLayout;

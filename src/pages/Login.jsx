@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Form, Input, Button, Tabs, Checkbox, message, Modal, Spin } from 'antd';
+import { Form, Input, Button, Tabs, Checkbox, message, Modal, Spin, Segmented } from 'antd';
 import { LockOutlined, MailOutlined, SafetyOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { loginByPassword, loginByCode, sendCode } from '../services/api';
+import { loginByPassword, loginByCode, sendCode } from '../services/authApi';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -16,8 +16,22 @@ const Login = () => {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotCountdown, setForgotCountdown] = useState(0);
   const [forgotSendingCode, setForgotSendingCode] = useState(false);
+  const [role, setRole] = useState('student');
 
-  // 邮箱密码登录
+  const handleLoginSuccess = (token, userData) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('role', role);
+    if (userData) {
+      localStorage.setItem('userInfo', JSON.stringify(userData));
+    }
+    message.success('登录成功！');
+    if (role === 'teacher') {
+      navigate('/home');
+    } else {
+      navigate('/student/home');
+    }
+  };
+
   const handleEmailLogin = async (values) => {
     setLoading(true);
     try {
@@ -25,9 +39,7 @@ const Login = () => {
         email: values.email,
         password: values.password,
       });
-      localStorage.setItem('token', res.data.token);
-      message.success('登录成功！即将进入首页');
-      navigate('/home');
+      handleLoginSuccess(res.data.token, res.data.user);
     } catch (error) {
       message.error(error.message || '登录失败');
     } finally {
@@ -35,7 +47,6 @@ const Login = () => {
     }
   };
 
-  // 发送验证码
   const handleSendCode = async () => {
     const email = codeForm.getFieldValue('email');
     if (!email) {
@@ -63,7 +74,6 @@ const Login = () => {
     }
   };
 
-  // 验证码登录
   const handleCodeLogin = async (values) => {
     setLoading(true);
     try {
@@ -71,9 +81,7 @@ const Login = () => {
         email: values.email,
         verify_code: values.verify_code,
       });
-      localStorage.setItem('token', res.data.token);
-      message.success('登录成功！即将进入首页');
-      navigate('/home');
+      handleLoginSuccess(res.data.token, res.data.user);
     } catch (error) {
       message.error(error.message || '登录失败');
     } finally {
@@ -81,7 +89,6 @@ const Login = () => {
     }
   };
 
-  // 忘记密码 - 发送验证码
   const handleForgotSendCode = async () => {
     const email = forgotForm.getFieldValue('email');
     if (!email) {
@@ -109,11 +116,10 @@ const Login = () => {
     }
   };
 
-  // 忘记密码
   const handleForgotPassword = async (values) => {
     setForgotLoading(true);
     try {
-      const { forgotPassword } = await import('../services/api');
+      const { forgotPassword } = await import('../services/authApi');
       await forgotPassword({
         email: values.email,
         verify_code: values.verify_code,
@@ -250,6 +256,19 @@ const Login = () => {
           知伴<span>AI</span>
         </div>
 
+        <div style={{ marginBottom: 20, textAlign: 'center' }}>
+          <Segmented
+            value={role}
+            onChange={setRole}
+            options={[
+              { label: '我是学生', value: 'student' },
+              { label: '我是老师', value: 'teacher' },
+            ]}
+            size="large"
+            style={{ background: '#f3f4f6', padding: 4 }}
+          />
+        </div>
+
         <Tabs defaultActiveKey="email" items={[emailTab, codeTab]} centered />
 
         <div style={{ textAlign: 'center', marginTop: 24, color: '#6b7280' }}>
@@ -263,7 +282,6 @@ const Login = () => {
         </div>
       </div>
 
-      {/* 忘记密码弹窗 */}
       <Modal
         title="忘记密码"
         open={forgotModalVisible}
