@@ -2,6 +2,209 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { message } from 'antd';
 import request from '../../utils/request';
+import { injectStyles } from '../../utils/injectStyles';
+
+injectStyles('student-video', `
+  .video-play-container {
+    max-width: 480px; margin: 0 auto; min-height: 100vh;
+    background: #fff; position: relative;
+  }
+  @media (min-width: 481px) { .video-play-container { max-width: 100%; } }
+  .video-nav-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 44px; background: #1a1a1a; color: #fff; padding: 0 15px;
+    position: sticky; top: 0; z-index: 200;
+  }
+  .video-nav-back {
+    width: 30px; height: 30px; display: flex; align-items: center;
+    justify-content: center; cursor: pointer; font-size: 20px; font-weight: bold;
+  }
+  .video-nav-title {
+    font-size: 16px; font-weight: 500; flex: 1; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 10px;
+  }
+  .video-nav-right { width: 30px; }
+  .video-section-v1 { position: relative; width: 100%; background: #000; height: 200px; }
+  .video-player-v1 { width: 100%; height: 200px; display: block; object-fit: contain; background: #000; }
+  .video-placeholder-v1 {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: #000; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; z-index: 1;
+  }
+  .video-spinner-v1 {
+    width: 30px; height: 30px; border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 1s linear infinite; margin-bottom: 8px;
+  }
+  .video-loading-text-v1 { color: #fff; font-size: 14px; }
+  .video-cover-v1 {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4); display: flex;
+    align-items: center; justify-content: center; z-index: 5;
+  }
+  .play-btn-large-v1 {
+    width: 60px; height: 60px; background: rgba(255,255,255,0.9);
+    border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 25px; color: #333;
+    padding-left: 5px; cursor: pointer;
+  }
+  .progress-control-bar-v1 { background: #fff; padding: 10px 15px 8px; border-bottom: 1px solid #f0f0f0; }
+  .progress-row-v1 { display: flex; align-items: center; margin-bottom: 8px; }
+  .time-info-v1 { font-size: 12px; color: #666; min-width: 40px; text-align: center; }
+  .progress-track-wrapper-v1 {
+    flex: 1; position: relative; height: 6px; background: #e5e5e5;
+    border-radius: 3px; margin: 0 10px; cursor: pointer;
+  }
+  .progress-fill-v1 {
+    position: absolute; top: 0; left: 0; height: 100%;
+    background: linear-gradient(90deg, #7c3aed, #a78bfa); border-radius: 3px;
+  }
+  .progress-thumb-v1 {
+    position: absolute; top: 50%; transform: translate(-50%, -50%);
+    width: 14px; height: 14px; background: #fff;
+    border: 2px solid #7c3aed; border-radius: 50%;
+  }
+  .progress-node-v1 {
+    position: absolute; top: 50%; transform: translate(-50%, -50%);
+    width: 14px; height: 14px; border-radius: 50%; background: #f59e0b;
+    border: 2px solid #fff; box-shadow: 0 0 6px rgba(245,158,11,0.6);
+    cursor: pointer; z-index: 10;
+  }
+  .progress-node-v1.triggered { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6); }
+  .progress-node-v1.answered { background: #22c55e; }
+  .control-row-v1 { display: flex; align-items: center; justify-content: space-between; padding-top: 5px; }
+  .control-left-v1, .control-right-v1 { display: flex; align-items: center; gap: 10px; }
+  .control-btn-v1 {
+    width: 32px; height: 32px; background: #f5f5f5; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #333; font-size: 12px; cursor: pointer;
+  }
+  .play-pause-btn-v1 {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    color: #fff; font-size: 16px;
+  }
+  .interaction-toggle-v1.active { background: linear-gradient(135deg, #7c3aed, #a78bfa); color: #fff; }
+  .ai-float-btn-v1 {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; box-shadow: 0 2px 10px rgba(124,58,237,0.4);
+    cursor: pointer; font-size: 16px;
+  }
+  .speed-selector-v1 { background: #fff; border-top: 1px solid #f0f0f0; padding: 10px 15px; }
+  .speed-list-v1 { display: flex; gap: 8px; flex-wrap: wrap; }
+  .speed-item-v1 {
+    padding: 8px 16px; background: #f5f5f5; border-radius: 20px;
+    font-size: 13px; color: #666; cursor: pointer;
+  }
+  .speed-item-v1.active { background: linear-gradient(135deg, #7c3aed, #a78bfa); color: #fff; }
+  .quiz-popup-overlay-v1 {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); z-index: 9999;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .quiz-popup-box-v1 {
+    width: 100%; max-width: 325px; max-height: 80vh; background: #fff;
+    border-radius: 12px; padding: 15px; overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  }
+  .quiz-popup-header-v1 {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e5e5e5;
+  }
+  .quiz-popup-title-v1 { font-size: 16px; font-weight: 600; color: #333; }
+  .quiz-close-btn-v1 {
+    width: 25px; height: 25px; display: flex; align-items: center;
+    justify-content: center; font-size: 18px; color: #999; cursor: pointer;
+  }
+  .quiz-question-v1 {
+    font-size: 15px; color: #333; line-height: 1.5; margin-bottom: 15px;
+    padding: 12px; background: #f8f9fa; border-radius: 6px;
+  }
+  .quiz-options-v1 { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .quiz-option-v1 {
+    display: flex; align-items: center; padding: 11px; background: #f5f5f5;
+    border-radius: 6px; border: 1px solid transparent; cursor: pointer;
+  }
+  .quiz-option-v1.selected { border-color: #8b5cf6; background: #f3e8ff; }
+  .quiz-option-v1.correct { border-color: #22c55e; background: #dcfce7; }
+  .quiz-option-v1.wrong { border-color: #ef4444; background: #fee2e2; }
+  .quiz-option-letter-v1 {
+    width: 24px; height: 24px; background: #e5e5e5; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: #666; margin-right: 8px;
+  }
+  .quiz-option-v1.selected .quiz-option-letter-v1 { background: #8b5cf6; color: #fff; }
+  .quiz-option-v1.correct .quiz-option-letter-v1 { background: #22c55e; color: #fff; }
+  .quiz-option-v1.wrong .quiz-option-letter-v1 { background: #ef4444; color: #fff; }
+  .quiz-option-text-v1 { font-size: 13px; color: #333; flex: 1; }
+  .quiz-result-v1 { margin-bottom: 10px; }
+  .result-message-v1 {
+    padding: 10px; border-radius: 6px; text-align: center;
+    font-size: 14px; font-weight: 600; margin-bottom: 8px;
+  }
+  .result-message-v1.success { background: #dcfce7; color: #22c55e; }
+  .result-message-v1.error { background: #fee2e2; color: #ef4444; }
+  .quiz-analysis-v1 {
+    padding: 10px; background: #f8f9fa; border-radius: 6px;
+    font-size: 12px; color: #666; line-height: 1.5;
+  }
+  .quiz-actions-v1 { display: flex; justify-content: center; }
+  .quiz-submit-btn-v1 {
+    padding: 12px 40px; border-radius: 25px; font-size: 14px;
+    text-align: center; cursor: pointer;
+  }
+  .quiz-submit-btn-v1.active { background: #8b5cf6; color: #fff; }
+  .quiz-submit-btn-v1.disabled { background: #e5e5e5; color: #999; pointer-events: none; }
+  .popup-overlay-v1 {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6); z-index: 9998;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .popup-box-v1 {
+    width: 280px; background: #fff; border-radius: 12px;
+    padding: 25px 20px; display: flex; flex-direction: column; align-items: center;
+  }
+  .popup-title-v1 { font-size: 17px; font-weight: 600; color: #333; margin-bottom: 8px; }
+  .popup-desc-v1 { font-size: 13px; color: #666; margin-bottom: 20px; text-align: center; }
+  .popup-buttons-v1 { display: flex; gap: 15px; width: 100%; }
+  .popup-btn-v1 { flex: 1; padding: 12px; border-radius: 25px; text-align: center; font-size: 15px; cursor: pointer; }
+  .popup-btn-v1.cancel { background: #e5e5e5; color: #999; }
+  .popup-btn-v1.confirm { background: #8b5cf6; color: #fff; }
+  .completion-overlay-v1 {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); z-index: 9997;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .completion-box-v1 {
+    width: 300px; background: #fff; border-radius: 16px;
+    padding: 30px 25px; display: flex; flex-direction: column; align-items: center;
+  }
+  .completion-icon-v1 {
+    width: 60px; height: 60px; background: #22c55e; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; color: #fff; margin-bottom: 15px;
+  }
+  .completion-title-v1 { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px; }
+  .completion-desc-v1 { font-size: 13px; color: #666; margin-bottom: 20px; }
+  .completion-stats-v1 {
+    display: flex; justify-content: space-around; width: 100%;
+    margin-bottom: 25px; padding: 15px 0;
+    border-top: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5;
+  }
+  .completion-stat-item-v1 { display: flex; flex-direction: column; align-items: center; }
+  .completion-stat-value-v1 { font-size: 20px; font-weight: 600; color: #8b5cf6; margin-bottom: 5px; }
+  .completion-stat-label-v1 { font-size: 11px; color: #999; }
+  .completion-actions-v1 { display: flex; gap: 10px; width: 100%; }
+  .completion-btn-v1 {
+    flex: 1; padding: 12px 8px; border-radius: 25px; text-align: center;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .completion-btn-v1.replay { background: #f5f5f5; color: #666; border: 1px solid #e5e5e5; }
+  .completion-btn-v1.analysis { background: #8b5cf6; color: #fff; }
+  .completion-btn-v1.quiz { background: linear-gradient(135deg, #f5576c, #f093fb); color: #fff; }
+`);
 
 // V1 video-play.html 完整逻辑
 const StudentVideoLearning = () => {

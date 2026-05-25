@@ -2,6 +2,52 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Modal, message } from 'antd';
 import { HomeOutlined, BookOutlined, UserOutlined } from '@ant-design/icons';
+import { injectStyles } from '../utils/injectStyles';
+
+injectStyles('student-layout', `
+  .student-app {
+    max-width: 480px; margin: 0 auto; min-height: 100vh;
+    background: #f5f5f5; position: relative; padding-bottom: 60px;
+  }
+  .student-header {
+    position: sticky; top: 0; z-index: 100; background: #fff;
+    padding: 12px 16px; display: flex; align-items: center;
+    justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .student-logo { font-size: 20px; font-weight: 700; color: #7c3aed; }
+  .student-header-right { display: flex; align-items: center; cursor: pointer; }
+  .student-avatar {
+    width: 32px; height: 32px; border-radius: 50%; background: #ede9fe;
+    display: flex; align-items: center; justify-content: center; color: #7c3aed;
+  }
+  .student-page-title {
+    background: #fff; padding: 12px 16px; font-size: 18px;
+    font-weight: 600; color: #1f2937; border-bottom: 1px solid #f3f4f6;
+  }
+  .student-content { padding: 12px 16px; }
+  .student-tabbar {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px; height: 56px; background: #fff;
+    display: flex; align-items: center; justify-content: space-around;
+    box-shadow: 0 -1px 8px rgba(0,0,0,0.06); z-index: 100;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .student-tabbar-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 4px 0; cursor: pointer;
+    color: #9ca3af; transition: color 0.2s;
+  }
+  .student-tabbar-item.active { color: #7c3aed; }
+  .student-tabbar-icon { font-size: 20px; margin-bottom: 2px; }
+  .student-tabbar-label { font-size: 11px; }
+  @media (min-width: 481px) {
+    .student-app { max-width: 100%; padding-bottom: 70px; box-shadow: none; min-height: 100vh; }
+    .student-header { padding: 14px 32px; }
+    .student-page-title { padding: 14px 32px; }
+    .student-content { padding: 16px 32px; max-width: 1200px; margin: 0 auto; }
+    .student-tabbar { max-width: 100%; }
+  }
+`);
 
 const tabs = [
   { key: '/student/home', label: '首页', icon: <HomeOutlined /> },
@@ -40,7 +86,7 @@ const StudentLayout = ({ children, title }) => {
   const pathParts = location.pathname.split('/');
   const activeKey = '/student/' + (pathParts[2] || 'home');
 
-  const isLearnActive = ['/student/learn', '/student/class', '/student/video'].includes(activeKey)
+  const isLearnActive = ['/student/learn', '/student/class', '/student/video', '/student/pending-tasks', '/student/weak-points', '/student/learning-analysis', '/student/deep-practice', '/student/small-kg', '/student/big-kg'].includes(activeKey)
     || location.pathname.startsWith('/student/class/')
     || location.pathname.startsWith('/student/video/');
 

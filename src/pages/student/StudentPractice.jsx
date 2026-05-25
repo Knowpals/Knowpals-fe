@@ -2,6 +2,106 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spin, message } from 'antd';
 import request from '../../utils/request';
+import AIFloatButton from '../../components/AIFloatButton';
+import { injectStyles } from '../../utils/injectStyles';
+
+injectStyles('student-practice', `
+  .practice-page-v1 { min-height: 100vh; background: #f5f7fa; }
+  .practice-header-v1 {
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    padding: 16px 15px 10px; color: #fff;
+  }
+  .practice-header-content-v1 { display: flex; align-items: center; justify-content: space-between; }
+  .practice-back-btn-v1 { font-size: 28px; cursor: pointer; padding: 0 5px; }
+  .practice-header-title-v1 { font-size: 18px; font-weight: 600; flex: 1; text-align: center; }
+  .practice-progress-bar-v1 { background: rgba(255,255,255,0.3); height: 4px; border-radius: 2px; margin-top: 12px; overflow: hidden; }
+  .practice-progress-fill-v1 { background: #fff; height: 100%; border-radius: 2px; transition: width 0.3s; }
+  .practice-progress-text-v1 { font-size: 12px; opacity: 0.9; margin-top: 6px; text-align: center; }
+  .practice-empty-v1 { text-align: center; padding: 60px 15px; }
+  .practice-empty-icon-v1 { font-size: 60px; margin-bottom: 15px; }
+  .practice-empty-title-v1 { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px; }
+  .practice-empty-desc-v1 { font-size: 14px; color: #999; }
+  .practice-card-v1 {
+    background: #fff; margin: 15px; border-radius: 15px;
+    padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+  .practice-card-header-v1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .practice-type-tag-v1 {
+    padding: 5px 12px; background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    color: #fff; border-radius: 15px; font-size: 12px;
+  }
+  .practice-question-num-v1 { font-size: 13px; color: #999; }
+  .practice-question-v1 { font-size: 16px; color: #333; line-height: 1.6; margin-bottom: 25px; }
+  .practice-options-v1 { display: flex; flex-direction: column; gap: 12px; }
+  .practice-option-v1 {
+    display: flex; align-items: center; padding: 15px;
+    border: 2px solid #f0f0f0; border-radius: 12px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .practice-option-v1:active { background: #f5f5f5; }
+  .practice-option-v1.selected { border-color: #7c3aed; background: rgba(124,58,237,0.1); }
+  .practice-option-v1.correct { border-color: #43e97b; background: rgba(67,233,123,0.1); }
+  .practice-option-v1.wrong { border-color: #f5576c; background: rgba(245,87,108,0.1); }
+  .practice-option-letter-v1 {
+    width: 30px; height: 30px; border-radius: 50%; background: #f5f5f5;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: bold; color: #666; margin-right: 12px;
+  }
+  .practice-option-v1.selected .practice-option-letter-v1 { background: #7c3aed; color: #fff; }
+  .practice-option-v1.correct .practice-option-letter-v1 { background: #43e97b; color: #fff; }
+  .practice-option-v1.wrong .practice-option-letter-v1 { background: #f5576c; color: #fff; }
+  .practice-option-text-v1 { flex: 1; font-size: 15px; color: #333; }
+  .practice-footer-v1 { margin-top: 25px; padding-top: 20px; border-top: 1px solid #f0f0f0; }
+  .practice-submit-btn-v1 {
+    width: 100%; padding: 14px; background: #e5e5e5; color: #999;
+    border-radius: 10px; font-size: 16px; text-align: center; cursor: pointer;
+  }
+  .practice-submit-btn-v1.active {
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    color: #fff; box-shadow: 0 4px 15px rgba(124,58,237,0.3);
+  }
+  .practice-next-btn-v1 {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, #43e97b, #38f9d7);
+    color: #fff; border-radius: 10px; font-size: 16px;
+    text-align: center; cursor: pointer;
+  }
+  .practice-analysis-v1 { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
+  .practice-analysis-title-v1 { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 8px; }
+  .practice-analysis-text-v1 { font-size: 14px; color: #666; line-height: 1.6; }
+  .result-overlay-v1 {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); z-index: 9998;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .result-content-v1 {
+    background: #fff; border-radius: 20px; width: 100%;
+    max-width: 360px; padding: 30px; text-align: center;
+  }
+  .result-icon-v1 { font-size: 80px; margin-bottom: 20px; }
+  .result-title-v1 { font-size: 24px; font-weight: 700; color: #333; margin-bottom: 10px; }
+  .result-score-v1 {
+    font-size: 48px; font-weight: 700;
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 15px;
+  }
+  .result-comment-v1 { font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 25px; }
+  .result-btn-v1 {
+    width: 100%; padding: 14px; border-radius: 25px;
+    font-size: 16px; cursor: pointer; margin-bottom: 10px;
+  }
+  .result-btn-v1.primary { background: linear-gradient(135deg, #7c3aed, #a78bfa); color: #fff; }
+  .result-btn-v1.secondary { background: transparent; color: #7c3aed; border: 1px solid #7c3aed; }
+  .practice-mode-switch-v2 {
+    margin: 10px 15px 0; padding: 10px 14px;
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .practice-mode-label-v2 { font-size: 13px; color: #6b7280; }
+  .practice-mode-link-v2 { font-size: 13px; color: #7c3aed; font-weight: 500; cursor: pointer; }
+`);
 
 // V1 quiz-practice.html 逻辑：个性化练习页面
 const StudentPractice = () => {
@@ -42,21 +142,21 @@ const StudentPractice = () => {
 
   const loadMockQuestions = () => {
     processQuestions([
-      { id: 'q1', knowledge_id: '勾股定理', question: '已知直角三角形的两直角边分别为3和4，则斜边的长度为多少？', type: 'choice',
-        options: [{ letter: 'A', text: '5' }, { letter: 'B', text: '6' }, { letter: 'C', text: '7' }, { letter: 'D', text: '8' }], answer: 'A',
-        analysis: '根据勾股定理，a² + b² = c²，即 3² + 4² = 9 + 16 = 25，c = 5。' },
-      { id: 'q2', knowledge_id: '勾股定理', question: '下列哪组数可以作为直角三角形的三边长？', type: 'choice',
-        options: [{ letter: 'A', text: '3, 4, 6' }, { letter: 'B', text: '5, 12, 13' }, { letter: 'C', text: '7, 24, 25' }, { letter: 'D', text: '8, 15, 17' }], answer: 'B',
-        analysis: '5² + 12² = 25 + 144 = 169 = 13²。' },
-      { id: 'q3', knowledge_id: '勾股定理应用', question: '一个等腰三角形的底边长为6，腰长为5，求这个三角形的高？', type: 'choice',
-        options: [{ letter: 'A', text: '3' }, { letter: 'B', text: '4' }, { letter: 'C', text: '5' }, { letter: 'D', text: '6' }], answer: 'B',
-        analysis: '等腰三角形底边上的高也是中线，3² + h² = 5²，h = 4。' },
-      { id: 'q4', knowledge_id: '勾股定理', question: '在平面直角坐标系中，点A(3,4)到原点的距离是多少？', type: 'choice',
-        options: [{ letter: 'A', text: '3' }, { letter: 'B', text: '4' }, { letter: 'C', text: '5' }, { letter: 'D', text: '7' }], answer: 'C',
-        analysis: '√(3² + 4²) = √25 = 5。' },
-      { id: 'q5', knowledge_id: '勾股定理逆定理', question: '如果一个三角形的三边长分别为6、8、10，则这个三角形是什么三角形？', type: 'choice',
-        options: [{ letter: 'A', text: '锐角三角形' }, { letter: 'B', text: '直角三角形' }, { letter: 'C', text: '钝角三角形' }, { letter: 'D', text: '等腰三角形' }], answer: 'B',
-        analysis: '6² + 8² = 36 + 64 = 100 = 10²，是直角三角形。' },
+      { id: 'q1', knowledge_id: 'Lagrange 插值', question: '给定数据点 (0,1), (1,3), (2,7)，用 Lagrange 插值计算 f(0.5) 的近似值为？', type: 'choice',
+        options: [{ letter: 'A', text: '1.5' }, { letter: 'B', text: '1.875' }, { letter: 'C', text: '2.0' }, { letter: 'D', text: '2.25' }], answer: 'B',
+        analysis: '基函数 l₀=x(x-2)/2, l₁=-x(x-2), l₂=x(x-1)/2。L(0.5)=1·l₀(0.5)+3·l₁(0.5)+7·l₂(0.5)=1.875。' },
+      { id: 'q2', knowledge_id: '数值积分', question: '梯形公式 ∫ₐᵇ f(x)dx ≈ (b-a)[f(a)+f(b)]/2 的代数精度是？', type: 'choice',
+        options: [{ letter: 'A', text: '0次' }, { letter: 'B', text: '1次' }, { letter: 'C', text: '2次' }, { letter: 'D', text: '3次' }], answer: 'B',
+        analysis: '梯形公式由线性插值导出，对 f(x)=1 和 f(x)=x 精确，对 f(x)=x² 有误差，代数精度为 1。' },
+      { id: 'q3', knowledge_id: '方程求根', question: '用二分法求方程 f(x)=x³-x-1=0 在 [1,2] 内的根，至少需要多少次迭代才能使误差小于 10⁻³？', type: 'choice',
+        options: [{ letter: 'A', text: '7次' }, { letter: 'B', text: '10次' }, { letter: 'C', text: '13次' }, { letter: 'D', text: '20次' }], answer: 'B',
+        analysis: '区间长度 1，每步减半，需满足 (1/2)ⁿ < 10⁻³，即 2ⁿ > 1000，n > log₂(1000) ≈ 9.97，至少 10 次。' },
+      { id: 'q4', knowledge_id: 'Newton 迭代', question: '用 Newton 迭代法求 √2，取初始值 x₀=1.5，一步迭代后 x₁ 的值为？', type: 'choice',
+        options: [{ letter: 'A', text: '1.4' }, { letter: 'B', text: '1.4167' }, { letter: 'C', text: '1.5' }, { letter: 'D', text: '1.4142' }], answer: 'B',
+        analysis: '方程 x²-2=0，Newton 迭代：x₁ = x₀ - (x₀²-2)/(2x₀) = 1.5 - (2.25-2)/3 = 1.5 - 0.0833 = 1.4167。' },
+      { id: 'q5', knowledge_id: '线性方程组', question: '用 Gauss 消元法求解 2x+3y=8, 4x+7y=18，消元后第二个方程变为？', type: 'choice',
+        options: [{ letter: 'A', text: 'y=2' }, { letter: 'B', text: 'y=4' }, { letter: 'C', text: 'y=1' }, { letter: 'D', text: 'y=3' }], answer: 'A',
+        analysis: '第二行减去第一行×2：(4-4)x + (7-6)y = 18-16，即 y=2。回代得 x=1。' },
     ]);
   };
 
@@ -137,6 +237,16 @@ const StudentPractice = () => {
         <div className="practice-progress-text-v1">{currentIdx + 1} / {questions.length}</div>
       </div>
 
+      <div className="practice-mode-switch-v2">
+        <span className="practice-mode-label-v2">当前：个性练习模式</span>
+        <span
+          className="practice-mode-link-v2"
+          onClick={() => navigate(`/student/deep-practice?videoId=${videoId || ''}&classId=${searchParams.get('classId') || ''}&title=${encodeURIComponent(pageTitle)}`)}
+        >
+          切换到深度练习 →
+        </span>
+      </div>
+
       {questions.length === 0 ? (
         <div className="practice-empty-v1">
           <div className="practice-empty-icon-v1">📝</div>
@@ -200,10 +310,19 @@ const StudentPractice = () => {
             <div className="result-btn-v1 primary" onClick={() => {
               if (videoId) navigate(`/student/report?videoId=${videoId}&title=${encodeURIComponent(pageTitle)}`);
             }}>查看学情报告</div>
+            <div
+              className="result-btn-v1 primary"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #a78bfa)' }}
+              onClick={() => navigate(`/student/deep-practice?videoId=${videoId || ''}&classId=${searchParams.get('classId') || ''}&title=${encodeURIComponent(pageTitle)}`)}
+            >
+              深度练习
+            </div>
             <div className="result-btn-v1 secondary" onClick={() => navigate(-1)}>返回学习</div>
           </div>
         </div>
       )}
+
+      <AIFloatButton />
     </div>
   );
 };

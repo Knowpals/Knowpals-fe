@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Form, Input, Button, Checkbox, message, Spin, Segmented } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined, SafetyOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { register, sendCode } from '../services/authApi';
+import { injectStyles } from '../utils/injectStyles';
+
+// 复用 Login 页的 CSS（注册页共享同一套 auth 样式）
+injectStyles('auth-pages', '');
 
 const Register = () => {
   const navigate = useNavigate();
@@ -60,11 +64,16 @@ const Register = () => {
 
   return (
     <div className="auth-container">
-      <div className="footer-book"></div>
+      <div className="auth-overlay"></div>
+
+      <div className="auth-brand">
+        <div className="auth-brand-title">知伴<span>AI</span></div>
+        <div className="auth-brand-sub">KNOWPALS · 智能学习平台</div>
+      </div>
 
       <div className="auth-card">
         <div className="auth-title">
-          知伴<span>AI</span>
+          创建<span>账号</span>
         </div>
 
         <div style={{ textAlign: 'center', marginBottom: 12, color: '#374151', fontWeight: 500 }}>

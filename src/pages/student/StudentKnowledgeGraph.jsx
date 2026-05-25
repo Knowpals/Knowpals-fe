@@ -8,6 +8,30 @@ import {
 } from '@ant-design/icons';
 import StudentLayout from '../../layouts/StudentLayout';
 import { getReport } from '../../services/studentApi';
+import { injectStyles } from '../../utils/injectStyles';
+
+injectStyles('student-graph', `
+  .graph-page { padding-bottom: 16px; }
+  .graph-legend { display: flex; gap: 16px; margin-bottom: 16px; font-size: 12px; color: #6b7280; flex-wrap: wrap; }
+  .graph-legend span { display: flex; align-items: center; gap: 4px; }
+  .graph-tree-card { border-radius: 12px !important; }
+  .graph-node { margin-bottom: 4px; }
+  .graph-node-row {
+    display: flex; align-items: center; padding: 8px 10px;
+    border-radius: 8px; cursor: default; transition: background 0.15s;
+  }
+  .graph-node-row:hover { background: #f9fafb; }
+  .graph-arrow {
+    font-size: 10px; color: #9ca3af; margin-right: 6px;
+    transition: transform 0.2s; display: inline-block; width: 14px;
+  }
+  .graph-arrow.open { transform: rotate(90deg); }
+  .graph-node-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    margin-right: 10px; flex-shrink: 0;
+  }
+  .graph-node-name { font-size: 14px; color: #1f2937; font-weight: 500; }
+`);
 
 const masteryColor = (val) => {
   if (val >= 0.8) return '#10b981';

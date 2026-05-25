@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/25946/WeChatProjects/my-zhiban-project/zhiban-unified/**)",
+      "Read(//c/Users/25946/WeChatProjects/my-zhiban-project/Knowpals-fe-h5/**)"
+    ]
+  }
+}

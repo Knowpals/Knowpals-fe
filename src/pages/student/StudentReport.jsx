@@ -2,6 +2,86 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spin, message } from 'antd';
 import request from '../../utils/request';
+import AIFloatButton from '../../components/AIFloatButton';
+import { injectStyles } from '../../utils/injectStyles';
+
+injectStyles('student-report', `
+  .report-page-v1 { min-height: 100vh; background: #f8f9fa; }
+  .report-header-card-v1 {
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    padding: 20px; border-radius: 0 0 20px 20px;
+    box-shadow: 0 4px 20px rgba(124,58,237,0.3);
+  }
+  .report-header-content-v1 { display: flex; align-items: center; gap: 12px; }
+  .report-back-btn-v1 { font-size: 22px; color: #fff; width: 30px; text-align: center; cursor: pointer; }
+  .report-title-section-v1 { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .report-video-title-v1 { font-size: 17px; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .report-subtitle-v1 { font-size: 12px; color: rgba(255,255,255,0.9); }
+  .report-content-v1 { padding: 12px 15px; max-width: 480px; margin: 0 auto; }
+  @media (min-width: 481px) { .report-content-v1 { max-width: 1200px; padding: 16px 32px; } }
+  .report-score-card-v1 {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 20px; background: #fff; border-radius: 12px;
+    margin-bottom: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+  .report-score-circle-v1 {
+    width: 100px; height: 100px;
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    border-radius: 50%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: #fff; margin-bottom: 10px;
+  }
+  .report-score-value-v1 { font-size: 36px; font-weight: 700; line-height: 1; }
+  .report-score-label-v1 { font-size: 12px; opacity: 0.9; }
+  .report-evaluation-v1 { font-size: 14px; color: #666; }
+  .report-stats-row-v1 { display: flex; justify-content: space-around; padding: 15px 0; margin-bottom: 10px; }
+  .report-stat-card-v1 { display: flex; flex-direction: column; align-items: center; }
+  .report-stat-value-v1 { font-size: 18px; font-weight: 600; color: #8b5cf6; }
+  .report-stat-label-v1 { font-size: 11px; color: #999; margin-top: 4px; }
+  .report-section-card-v1 {
+    background: #fff; border-radius: 12px; padding: 15px;
+    margin-bottom: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+  .report-section-title-v1 { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 12px; }
+  .knowledge-list-v1 { display: flex; flex-direction: column; gap: 10px; }
+  .knowledge-item-v1 { display: flex; flex-direction: column; gap: 5px; }
+  .knowledge-item-info-v1 { display: flex; justify-content: space-between; align-items: center; }
+  .knowledge-name-v1 { font-size: 13px; color: #333; font-weight: 500; }
+  .knowledge-rate-v1 { font-size: 13px; font-weight: 600; color: #333; }
+  .knowledge-bar-v1 { width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+  .knowledge-bar-fill-v1 { height: 100%; border-radius: 4px; transition: width 0.3s; }
+  .weakness-list-v1 { display: flex; flex-direction: column; gap: 10px; }
+  .weakness-item-v1 { display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; }
+  .weakness-item-v1:last-child { border-bottom: none; padding-bottom: 0; }
+  .weakness-info-v1 { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .weakness-topic-v1 { font-size: 13px; color: #333; font-weight: 500; }
+  .weakness-desc-v1 { font-size: 11px; color: #666; }
+  .weakness-btn-v1 {
+    padding: 5px 12px; background: #4A6FFF; color: #fff;
+    border-radius: 4px; font-size: 11px; cursor: pointer; white-space: nowrap;
+  }
+  .report-actions-v1 { display: flex; gap: 12px; margin-top: 16px; }
+  .report-action-btn-v1 {
+    flex: 1; padding: 14px; border-radius: 25px; text-align: center;
+    font-size: 15px; font-weight: 500; cursor: pointer;
+  }
+  .report-action-btn-v1.primary { background: linear-gradient(135deg, #7c3aed, #a78bfa); color: #fff; }
+  .report-action-btn-v1.secondary { background: transparent; color: #7c3aed; border: 1px solid #7c3aed; }
+  .report-empty-v1 { text-align: center; padding: 60px 0; color: #999; }
+  .weakness-modal-v1 {
+    width: 90%; max-width: 300px; background: #fff;
+    border-radius: 12px; overflow: hidden; animation: slideUp 0.3s ease;
+  }
+  .weakness-modal-header-v1 { padding: 15px; text-align: center; font-size: 16px; font-weight: 600; border-bottom: 1px solid #f0f0f0; }
+  .weakness-modal-body-v1 { padding: 15px; }
+  .weakness-modal-row-v1 { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #f5f5f5; }
+  .weakness-modal-row-v1:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .weakness-modal-label-v1 { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+  .weakness-modal-value-v1 { font-size: 14px; color: #333; }
+  .weakness-modal-footer-v1 { display: flex; border-top: 1px solid #f0f0f0; }
+  .weakness-modal-btn-v1 { flex: 1; padding: 12px 0; text-align: center; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .weakness-modal-btn-v1.cancel { background: #f5f5f5; color: #333; }
+  .weakness-modal-btn-v1.confirm { background: #fff; color: #4A6FFF; font-weight: 600; }
+`);
 
 // V1 study-data.html 逻辑：学情报告页面
 const StudentReport = () => {
@@ -173,6 +253,11 @@ const StudentReport = () => {
               <div className="report-action-btn-v1 primary" onClick={() => navigate(`/student/practice?videoId=${videoId}&title=${encodeURIComponent(videoTitle)}`)}>
                 个性练习
               </div>
+              <div className="report-action-btn-v1 secondary" onClick={() => navigate(`/student/learning-analysis?videoId=${videoId}&classId=${searchParams.get('classId') || ''}&title=${encodeURIComponent(videoTitle)}`)}>
+                详细分析
+              </div>
+            </div>
+            <div className="report-actions-v1" style={{ marginTop: 0 }}>
               <div className="report-action-btn-v1 secondary" onClick={() => navigate(-1)}>
                 返回学习
               </div>
@@ -206,12 +291,14 @@ const StudentReport = () => {
               <div className="weakness-modal-btn-v1 cancel" onClick={() => setShowWeaknessModal(false)}>知道了</div>
               <div className="weakness-modal-btn-v1 confirm" onClick={() => {
                 setShowWeaknessModal(false);
-                navigate(`/student/practice?videoId=${videoId}&title=${encodeURIComponent(videoTitle)}`);
-              }}>开始练习</div>
+                navigate(`/student/deep-practice?videoId=${videoId}&classId=${searchParams.get('classId') || ''}&title=${encodeURIComponent(currentWeakness.point)}`);
+              }}>深度练习</div>
             </div>
           </div>
         </div>
       )}
+
+      <AIFloatButton />
     </div>
   );
 };

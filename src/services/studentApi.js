@@ -49,3 +49,20 @@ export const getReport = (params) => request.get('/agent/report', { params });
 
 // 生成习题（AI生成）
 export const generateQuiz = (data) => request.post('/agent/quiz', data);
+
+// ==================== V2 新增 API ====================
+
+// 获取学情分析
+export const getLearningAnalysis = (params) => request.get('/agent/learning-analysis', { params });
+
+// 获取深度练习题目（BFS 前置知识追溯）
+export const getDeepPractice = (params) => request.get('/agent/deep-practice', { params });
+
+// 获取小图谱（视频级知识图谱）
+export const getSmallKG = (params) => request.get('/agent/small-kg', { params });
+
+// 获取大图谱（课程级知识图谱）
+export const getBigKG = (params) => request.get('/agent/big-kg', { params });
+
+// 获取学生画像
+export const getStudentPersona = () => request.get('/agent/persona');

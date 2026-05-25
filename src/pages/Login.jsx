@@ -3,6 +3,41 @@ import { Form, Input, Button, Tabs, Checkbox, message, Modal, Spin, Segmented } 
 import { LockOutlined, MailOutlined, SafetyOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { loginByPassword, loginByCode, sendCode } from '../services/authApi';
+import { injectStyles } from '../utils/injectStyles';
+
+injectStyles('auth-pages', `
+  .auth-container {
+    background: url('/login-bg.png') center center / cover no-repeat;
+    height: 100vh; width: 100vw; display: flex;
+    align-items: center; justify-content: flex-end;
+    position: relative; overflow: hidden;
+  }
+  .auth-overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.25); pointer-events: none; z-index: 0;
+  }
+  .auth-brand {
+    position: absolute; left: 80px; top: 50%; transform: translateY(-50%);
+    z-index: 1; color: #fff;
+  }
+  .auth-brand-title { font-size: 40px; font-weight: 800; letter-spacing: 4px; margin-bottom: 6px; }
+  .auth-brand-title span { color: #a78bfa; }
+  .auth-brand-sub { font-size: 16px; opacity: 0.85; font-weight: 300; letter-spacing: 2px; }
+  .auth-card {
+    width: 380px; background: rgba(255,255,255,0.95); border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.2); padding: 28px 32px;
+    position: relative; z-index: 10; margin-right: 80px;
+    backdrop-filter: blur(10px); max-height: 96vh; overflow-y: auto;
+  }
+  .auth-title { font-size: 24px; font-weight: 700; color: #1f2937; margin-bottom: 20px; text-align: center; }
+  .auth-title span { color: #7c3aed; }
+  @media (max-width: 768px) {
+    .auth-container { justify-content: center; }
+    .auth-brand { display: none; }
+    .auth-card { width: 360px; margin-right: 0; margin: 16px; padding: 24px 20px; }
+  }
+  @media (min-width: 769px) { .auth-card { width: 400px; } }
+`);
 
 const Login = () => {
   const navigate = useNavigate();
@@ -249,11 +284,16 @@ const Login = () => {
 
   return (
     <div className="auth-container">
-      <div className="footer-book"></div>
+      <div className="auth-overlay"></div>
+
+      <div className="auth-brand">
+        <div className="auth-brand-title">知伴<span>AI</span></div>
+        <div className="auth-brand-sub">KNOWPALS · 智能学习平台</div>
+      </div>
 
       <div className="auth-card">
         <div className="auth-title">
-          知伴<span>AI</span>
+          欢迎<span>登录</span>
         </div>
 
         <div style={{ marginBottom: 20, textAlign: 'center' }}>

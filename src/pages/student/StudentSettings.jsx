@@ -1,43 +1,204 @@
-import { useState } from 'react';
-import { Card, Button, Switch, message } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StudentLayout from '../../layouts/StudentLayout';
+import request from '../../utils/request';
+import { injectStyles } from '../../utils/injectStyles';
 
-const StudentSettings = () => {
+injectStyles('student-settings', `
+  .settings-page-v1 { padding-bottom: 20px; }
+  .settings-user-card-v1 {
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    border-radius: 0 0 15px 15px; padding: 24px;
+    text-align: center; color: #fff; margin-bottom: 12px;
+  }
+  .settings-avatar-v1 {
+    width: 72px; height: 72px; border-radius: 50%; object-fit: cover;
+    border: 2px solid rgba(255,255,255,0.4); margin-bottom: 10px;
+  }
+  .settings-name-v1 { font-size: 18px; font-weight: 600; display: block; }
+  .settings-id-v1 { font-size: 12px; opacity: 0.7; margin-top: 4px; display: block; }
+  .settings-info-list-v1 { background: #fff; border-radius: 12px; margin: 0 15px 12px; overflow: hidden; }
+  .settings-info-item-v1 {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px; border-bottom: 1px solid #f5f5f5;
+  }
+  .settings-info-item-v1:last-child { border-bottom: none; }
+  .settings-label-v1 { font-size: 14px; color: #666; }
+  .settings-value-v1 { font-size: 14px; color: #333; }
+  .settings-action-section-v1 { margin: 0 15px 12px; }
+  .settings-action-title-v1 { font-size: 13px; color: #999; display: block; margin-bottom: 8px; }
+  .settings-action-buttons-v1 { display: flex; flex-direction: column; gap: 8px; }
+  .settings-action-btn-v1 {
+    width: 100%; padding: 12px; border-radius: 10px; font-size: 14px;
+    cursor: pointer; border: none; text-align: center;
+  }
+  .settings-action-btn-v1.avatar { background: #ede9fe; color: #7c3aed; }
+  .settings-action-btn-v1.email { background: #fef3c7; color: #d97706; }
+  .settings-action-btn-v1.about { background: #dbeafe; color: #2563eb; }
+  .settings-action-btn-v1.logout { background: #fee2e2; color: #ef4444; }
+  .settings-version-v1 { text-align: center; color: #ccc; font-size: 12px; padding: 20px; }
+  .settings-version-v1 p { margin: 4px 0; }
+  .settings-toast-v1 {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.75); color: #fff; padding: 10px 24px;
+    border-radius: 8px; font-size: 14px; z-index: 9999;
+  }
+`);
+
+export default function StudentSettings() {
   const navigate = useNavigate();
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [userInfo, setUserInfo] = useState(null);
+  const [registerTime, setRegisterTime] = useState('--');
+  const [registerDays, setRegisterDays] = useState('--');
+  const [toastMsg, setToastMsg] = useState('');
+
+  useEffect(() => {
+    const stored = localStorage.getItem('userInfo');
+    if (stored) {
+      try {
+        const info = JSON.parse(stored);
+        setUserInfo(info);
+        loadUserInfoFromServer(info);
+      } catch (e) { /* ignore */ }
+    }
+  }, []);
+
+  const loadUserInfoFromServer = async (localInfo) => {
+    try {
+      const res = await request.get('/user/getUserInfo');
+      if ((res.code === 0 || res.code === 200) && res.data) {
+        const data = res.data;
+        const updated = {
+          username: data.username || localInfo?.username || '用户',
+          email: data.email || '',
+          created_at: data.created_at || '',
+          register_day: data.register_day || 0,
+          student_id: data.student_id || '000000',
+          avatarUrl: localInfo?.avatarUrl || '',
+        };
+        localStorage.setItem('userInfo', JSON.stringify(updated));
+        setUserInfo(updated);
+        updateRegisterInfo(updated);
+      }
+    } catch (err) {
+      console.error('获取用户信息失败:', err);
+      if (localInfo) updateRegisterInfo(localInfo);
+    }
+  };
+
+  const updateRegisterInfo = (info) => {
+    if (!info) return;
+    const days = info.register_day || 0;
+    let time = '--';
+    if (info.created_at) {
+      try {
+        const date = new Date(info.created_at);
+        time = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      } catch (e) {
+        time = info.created_at;
+      }
+    }
+    setRegisterDays(days > 0 ? `${days}天` : '--');
+    setRegisterTime(time);
+  };
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 2000);
+  };
+
+  const changeAvatar = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const updated = { ...(userInfo || {}), avatarUrl: ev.target.result };
+          setUserInfo(updated);
+          localStorage.setItem('userInfo', JSON.stringify(updated));
+          showToast('头像更新成功');
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
+  const changeEmail = () => {
+    showToast('此功能在后续版本开放');
+  };
+
+  const showAbout = () => {
+    alert('Knowpals v1.0.0\n\n一个智能学习助手，帮助你更好地学习和掌握知识。\n\n© 2024 All Rights Reserved');
+  };
+
+  const handleLogout = () => {
+    if (!window.confirm('确定要退出登录吗？')) return;
+    localStorage.removeItem('userInfo');
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    navigate('/');
+  };
 
   return (
     <StudentLayout title="设置">
-      <div style={{ padding: '0' }}>
-        <Card className="me-menu" styles={{ body: { padding: 0 } }}>
-          <div className="me-menu-item">
-            <span>消息推送通知</span>
-            <Switch checked={pushEnabled} onChange={setPushEnabled} />
-          </div>
-          <div className="me-menu-item">
-            <span>答题音效</span>
-            <Switch checked={soundEnabled} onChange={setSoundEnabled} />
-          </div>
-        </Card>
-
-        <div style={{ padding: '16px 0', textAlign: 'center' }}>
-          <Button block onClick={() => navigate('/student/report')} style={{ marginBottom: 8 }}>
-            查看学习报告
-          </Button>
-          <Button block onClick={() => message.info('已是最新版本')}>
-            检查更新
-          </Button>
+      <div className="settings-page-v1">
+        {/* User info card - matches H5 settings.html */}
+        <div className="settings-user-card-v1">
+          <img
+            className="settings-avatar-v1"
+            src={userInfo?.avatarUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23ddd'/%3E%3C/svg%3E"}
+            alt=""
+          />
+          <span className="settings-name-v1">{userInfo?.username || userInfo?.nickName || '用户'}</span>
+          <span className="settings-id-v1">学号: {userInfo?.student_id || userInfo?.studentId || '000000'}</span>
         </div>
 
-        <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: 12, marginTop: 24 }}>
-          知伴AI V2.0 · C++ 智能学习平台
+        {/* Info list - matches H5 settings.html */}
+        <div className="settings-info-list-v1">
+          <div className="settings-info-item-v1">
+            <span className="settings-label-v1">绑定邮箱</span>
+            <span className="settings-value-v1">{userInfo?.email || '未绑定'}</span>
+          </div>
+          <div className="settings-info-item-v1">
+            <span className="settings-label-v1">注册时间</span>
+            <span className="settings-value-v1">{registerTime}</span>
+          </div>
+          <div className="settings-info-item-v1">
+            <span className="settings-label-v1">学习天数</span>
+            <span className="settings-value-v1">{registerDays}</span>
+          </div>
         </div>
+
+        {/* Action buttons - matches H5 settings.html */}
+        <div className="settings-action-section-v1">
+          <span className="settings-action-title-v1">账号设置</span>
+          <div className="settings-action-buttons-v1">
+            <button className="settings-action-btn-v1 avatar" onClick={changeAvatar}>📷 修改头像</button>
+            <button className="settings-action-btn-v1 email" onClick={changeEmail}>✉️ 修改绑定邮箱</button>
+          </div>
+        </div>
+
+        <div className="settings-action-section-v1">
+          <span className="settings-action-title-v1">其他</span>
+          <div className="settings-action-buttons-v1">
+            <button className="settings-action-btn-v1 about" onClick={showAbout}>ℹ️ 关于我们</button>
+            <button className="settings-action-btn-v1 logout" onClick={handleLogout}>🚪 退出登录</button>
+          </div>
+        </div>
+
+        {/* Version info */}
+        <div className="settings-version-v1">
+          <p>Knowpals v1.0.0</p>
+          <p>© 2024 All Rights Reserved</p>
+        </div>
+
+        {/* Toast */}
+        {toastMsg && <div className="settings-toast-v1">{toastMsg}</div>}
       </div>
     </StudentLayout>
   );
-};
-
-export default StudentSettings;
+}
