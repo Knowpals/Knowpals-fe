@@ -145,6 +145,10 @@ const StudentReport = () => {
       knowledgePoints,
       weaknesses,
       evaluation: completionRate >= 80 ? '学习效果优秀，继续保持！' : completionRate >= 50 ? '还需努力，建议针对薄弱点加强练习。' : '建议重新学习相关知识。',
+      errorDiagnosis: {
+        primary: '能力天花板', primarySub: '方法误用', confidence: 0.35,
+        summary: '中高难度正确率断崖下降，可能存在方法选择偏差',
+      },
     });
   };
 
@@ -244,6 +248,32 @@ const StudentReport = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* 错因诊断摘要 */}
+            {report.errorDiagnosis && (
+              <div className="report-section-card-v1" style={{ background: 'linear-gradient(135deg, #fef2f2, #fff7ed)', border: '1px solid #fecaca' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: '#333' }}>错因诊断</span>
+                  <span style={{ fontSize: 11, color: '#6b7280' }}>
+                    置信度 {Math.round(report.errorDiagnosis.confidence * 100)}%
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: '#ef4444', fontWeight: 600, marginBottom: 4 }}>
+                  主错因：{report.errorDiagnosis.primary}（{report.errorDiagnosis.primarySub}）
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5 }}>
+                  {report.errorDiagnosis.summary}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <span
+                    style={{ fontSize: 12, color: '#7c3aed', fontWeight: 500, cursor: 'pointer' }}
+                    onClick={() => navigate(`/student/learning-analysis?videoId=${videoId}&classId=${searchParams.get('classId') || ''}&title=${encodeURIComponent(videoTitle)}`)}
+                  >
+                    查看完整错因分析 →
+                  </span>
                 </div>
               </div>
             )}
