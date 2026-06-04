@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spin } from 'antd';
 import MasteryBar from '../../components/MasteryBar';
+import BackArrow from '../../components/BackArrow';
 import AIFloatButton from '../../components/AIFloatButton';
 import { getLearningAnalysis } from '../../services/studentApi';
 import { injectStyles } from '../../utils/injectStyles';
+import '../../utils/sharedPageStyles';
 
 injectStyles('student-learning-analysis', `
   .la-page-v2 { min-height: 100vh; background: #f8f9fa; }
@@ -301,7 +303,7 @@ export default function StudentLearningAnalysis() {
     <div className="la-page-v2">
       <div className="la-header-v2">
         <div className="la-header-content-v2">
-          <div className="la-back-btn-v2" onClick={() => navigate(-1)}>←</div>
+          <BackArrow onClick={() => navigate(-1)} />
           <div className="la-title-section-v2">
             <span className="la-title-v2">{decodeURIComponent(pageTitle)}</span>
             <span className="la-subtitle-v2">学情分析报告</span>

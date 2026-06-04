@@ -5,44 +5,72 @@ import request from '../../utils/request';
 import { injectStyles } from '../../utils/injectStyles';
 
 injectStyles('student-me', `
-  .me-page-v1 { padding-bottom: 20px; }
+  .me-page-v1 { padding-bottom: 20px; position: relative; z-index: 1; }
   .me-user-header-v1 {
-    background: linear-gradient(135deg, #7c3aed, #a78bfa);
-    border-radius: 0 0 15px 15px; padding: 24px; color: #fff; margin-bottom: 10px;
+    background: linear-gradient(160deg, #4c1d95 0%, #6d28d9 30%, #7c3aed 70%, #a78bfa 100%);
+    border-radius: 0 0 20px 20px; padding: 28px 20px; color: #fff; margin-bottom: 12px;
+    position: relative; overflow: hidden;
   }
-  .me-user-info-row-v1 { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .me-user-header-v1::before {
+    content: ''; position: absolute; top: -30px; left: -30px;
+    width: 220px; height: 220px;
+    background: url('/我的页面头部光晕.png') center / cover no-repeat;
+    opacity: 0.18; pointer-events: none; z-index: 0;
+  }
+  .me-user-header-v1 > * { position: relative; z-index: 1; }
+  .me-user-info-row-v1 { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
   .me-avatar-wrapper-v1 { position: relative; cursor: pointer; flex-shrink: 0; }
-  .me-avatar-img-v1 { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.4); }
-  .me-avatar-edit-v1 { position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #7c3aed; }
+  .me-avatar-img-v1 {
+    width: 60px; height: 60px; border-radius: 50%; object-fit: cover;
+    border: 2px solid rgba(255,255,255,0.3);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+  .me-avatar-edit-v1 { position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #7c3aed; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
   .me-user-detail-v1 { flex: 1; min-width: 0; }
   .me-name-section-v1 { display: flex; flex-direction: column; }
-  .me-user-name-v1 { font-size: 20px; font-weight: 600; }
-  .me-user-id-v1 { font-size: 12px; opacity: 0.7; }
-  .me-user-level-v1 { font-size: 13px; margin-top: 6px; display: flex; align-items: center; gap: 4px; opacity: 0.9; }
+  .me-user-name-v1 { font-size: 19px; font-weight: 500; letter-spacing: 0.3px; }
+  .me-user-id-v1 { font-size: 12px; opacity: 0.65; font-weight: 400; }
+  .me-user-level-v1 { font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 4px; opacity: 0.85; font-weight: 400; }
   .me-register-info-v1 { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-  .me-register-email-v1 { font-size: 12px; opacity: 0.7; }
-  .me-register-time-v1, .me-register-days-v1 { font-size: 11px; opacity: 0.6; }
-  .me-login-btn-v1 { background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.4); border-radius: 20px; padding: 8px 24px; font-size: 14px; cursor: pointer; text-align: center; }
-  .me-stats-overview-v1 {
-    display: flex; background: #fff; margin: 0 15px 10px; padding: 15px 0;
-    border-radius: 10px; justify-content: space-around;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  .me-register-email-v1 { font-size: 11px; opacity: 0.60; font-weight: 400; }
+  .me-register-time-v1, .me-register-days-v1 { font-size: 11px; opacity: 0.50; font-weight: 400; }
+  .me-login-btn-v1 {
+    background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 20px; padding: 8px 28px; font-size: 13px; cursor: pointer; text-align: center;
+    font-weight: 400; letter-spacing: 0.3px;
+    transition: all 0.2s ease;
   }
-  .me-overview-item-v1 { display: flex; flex-direction: column; align-items: center; flex: 1; text-align: center; cursor: pointer; }
-  .me-overview-value-v1 { font-size: 20px; font-weight: 700; color: #1f1072; margin-bottom: 5px; }
-  .me-overview-label-v1 { font-size: 13px; color: #666; }
-  .me-menu-section-v1 { background: #fff; margin: 0 15px 10px; border-radius: 10px; overflow: hidden; }
-  .me-menu-section-header-v1 { padding: 15px 15px 10px; font-size: 14px; color: #999; }
-  .me-menu-list-v1 { /* container */ }
+  .me-login-btn-v1:hover { background: rgba(255,255,255,0.25); }
+  .me-stats-overview-v1 {
+    display: flex; background: #fff; margin: 0 15px 12px; padding: 16px 0;
+    border-radius: 14px; justify-content: space-around;
+    border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .me-overview-item-v1 {
+    display: flex; flex-direction: column; align-items: center; flex: 1; text-align: center;
+    cursor: pointer; transition: transform 0.2s ease;
+  }
+  .me-overview-item-v1:hover { transform: translateY(-1px); }
+  .me-overview-value-v1 { font-size: 22px; font-weight: 300; color: #1f2937; margin-bottom: 4px; letter-spacing: -0.5px; }
+  .me-overview-label-v1 { font-size: 12px; color: #9ca3af; font-weight: 400; }
+  .me-menu-section-v1 {
+    background: #fff; margin: 0 15px 12px; border-radius: 14px; overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .me-menu-section-header-v1 { padding: 14px 16px 8px; font-size: 12px; color: #9ca3af; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
   .me-menu-item-v1 {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 15px; border-bottom: 1px solid #f5f5f5; cursor: pointer;
+    padding: 14px 16px; border-bottom: 1px solid #f9fafb; cursor: pointer;
+    transition: background 0.15s ease;
   }
   .me-menu-item-v1:last-child { border-bottom: none; }
-  .me-menu-left-v1 { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #333; }
-  .me-menu-icon-v1 { font-size: 20px; width: 30px; text-align: center; }
-  .me-menu-arrow-v1 { font-size: 20px; color: #ddd; }
-  .me-badge-v1 { background: #ff4757; color: #fff; font-size: 10px; padding: 2px 7px; border-radius: 10px; min-width: 18px; text-align: center; }
+  .me-menu-item-v1:hover { background: #faf9ff; }
+  .me-menu-left-v1 { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #374151; font-weight: 400; }
+  .me-menu-icon-v1 { font-size: 18px; width: 28px; text-align: center; }
+  .me-menu-arrow-v1 { font-size: 16px; color: #d1d5db; }
+  .me-badge-v1 { background: #ef4444; color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 10px; min-width: 20px; text-align: center; font-weight: 500; }
   .me-badge-v1.show { display: inline-block; }
   .me-logout-section-v1 { margin-top: 20px; text-align: center; padding: 0 15px 20px; }
   .me-logout-btn-v1 { background: #fff; color: #ff4757; border: 1px solid #ff4757; padding: 12px; border-radius: 8px; font-size: 14px; cursor: pointer; width: 100%; }

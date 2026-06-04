@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import request from '../../utils/request';
+import BackArrow from '../../components/BackArrow';
 import { injectStyles } from '../../utils/injectStyles';
+import '../../utils/sharedPageStyles';
 
 injectStyles('student-pending-tasks', `
   .pending-tasks-page { min-height: 100vh; background: #f5f5f5; }

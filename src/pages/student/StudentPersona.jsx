@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spin } from 'antd';
 import * as echarts from 'echarts';
+import BackArrow from '../../components/BackArrow';
 import { getStudentPersona } from '../../services/studentApi';
 import { injectStyles } from '../../utils/injectStyles';
+import '../../utils/sharedPageStyles';
 
 injectStyles('student-persona', `
   .persona-page-v2 { min-height: 100vh; background: #f8f9fa; }
@@ -183,7 +185,7 @@ export default function StudentPersona() {
     <div className="persona-page-v2">
       <div className="persona-header-v2">
         <div className="persona-header-content-v2">
-          <div className="persona-back-btn-v2" onClick={() => navigate(-1)}>←</div>
+          <BackArrow onClick={() => navigate(-1)} />
           <span className="persona-header-title-v2">学习画像</span>
         </div>
       </div>

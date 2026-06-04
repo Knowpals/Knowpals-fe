@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spin, message } from 'antd';
 import request from '../../utils/request';
+import BackArrow from '../../components/BackArrow';
 import AIFloatButton from '../../components/AIFloatButton';
 import { injectStyles } from '../../utils/injectStyles';
+import '../../utils/sharedPageStyles';
 
 injectStyles('student-report', `
   .report-page-v1 { min-height: 100vh; background: #f8f9fa; }
@@ -165,7 +167,7 @@ const StudentReport = () => {
       {/* 顶部标题栏 */}
       <div className="report-header-card-v1">
         <div className="report-header-content-v1">
-          <div className="report-back-btn-v1" onClick={() => navigate(-1)}>←</div>
+          <BackArrow onClick={() => navigate(-1)} />
           <div className="report-title-section-v1">
             <span className="report-video-title-v1">{decodeURIComponent(videoTitle)}</span>
             <span className="report-subtitle-v1">课程学情报告</span>

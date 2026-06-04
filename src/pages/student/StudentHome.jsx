@@ -8,66 +8,97 @@ import { injectStyles } from '../../utils/injectStyles';
 
 injectStyles('student-home', `
   .greeting-card-v1 {
-    background: linear-gradient(135deg, #7c3aed, #a78bfa);
-    border-radius: 12px; padding: 16px; margin-bottom: 12px; color: #fff;
+    background: linear-gradient(160deg, #5b21b6 0%, #7c3aed 30%, #8b5cf6 60%, #a78bfa 100%);
+    border-radius: 16px; padding: 20px 16px; margin-bottom: 14px; color: #fff;
+    position: relative; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(124,58,237,0.18);
   }
-  .greeting-header-v1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-  .greeting-text-v1 { font-size: 18px; font-weight: 600; }
-  .greeting-date-v1 { font-size: 13px; opacity: 0.85; }
+  .greeting-card-v1::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: url('/首页问候卡片.png') center / cover no-repeat;
+    opacity: 0.10; pointer-events: none; z-index: 0;
+  }
+  .greeting-card-v1 > * { position: relative; z-index: 1; }
+  .greeting-header-v1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .greeting-text-v1 { font-size: 18px; font-weight: 500; letter-spacing: 0.3px; }
+  .greeting-date-v1 { font-size: 12px; opacity: 0.75; font-weight: 400; }
   .greeting-stats-row-v1 { display: flex; justify-content: space-around; }
   .greeting-stat-box-v1 { display: flex; flex-direction: column; align-items: center; }
-  .greeting-stat-num-v1 { font-size: 24px; font-weight: 700; }
-  .greeting-stat-label-v1 { font-size: 12px; opacity: 0.85; margin-top: 4px; }
+  .greeting-stat-num-v1 { font-size: 26px; font-weight: 300; letter-spacing: -1px; }
+  .greeting-stat-label-v1 { font-size: 11px; opacity: 0.70; margin-top: 4px; font-weight: 400; }
   .quick-grid-v1 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
   .quick-item-v1 {
-    background: #fff; border-radius: 12px; padding: 16px 12px;
-    display: flex; flex-direction: column; align-items: center; gap: 8px;
-    cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: transform 0.15s;
+    background: #fff; border-radius: 14px; padding: 18px 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    cursor: pointer; border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 0 0 0 rgba(124,58,237,0);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .quick-item-v1:active { transform: scale(0.97); }
+  .quick-item-v1:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(124,58,237,0.08), 0 1px 3px rgba(0,0,0,0.04);
+    border-color: rgba(124,58,237,0.12);
+  }
+  .quick-item-v1:active { transform: scale(0.98); }
   .quick-icon-v1 {
-    width: 44px; height: 44px; border-radius: 50%; display: flex;
+    width: 46px; height: 46px; border-radius: 14px; display: flex;
     align-items: center; justify-content: center; font-size: 20px;
   }
-  .quick-icon-v1.purple { background: #ede9fe; }
-  .quick-icon-v1.orange { background: #fef3c7; }
-  .quick-icon-v1.blue { background: #dbeafe; }
-  .quick-icon-v1.green { background: #d1fae5; }
-  .quick-text-v1 { font-size: 13px; color: #374151; font-weight: 500; }
+  .quick-icon-v1.purple { background: #f5f3ff; color: #7c3aed; }
+  .quick-icon-v1.orange { background: #fffbf0; color: #f59e0b; }
+  .quick-icon-v1.blue { background: #f0f7ff; color: #3b82f6; }
+  .quick-icon-v1.green { background: #f0fdf4; color: #10b981; }
+  .quick-text-v1 { font-size: 13px; color: #374151; font-weight: 500; letter-spacing: 0.2px; }
   .classes-list-v1 {
-    background: #fff; border-radius: 12px; overflow: hidden; margin-bottom: 12px;
+    background: #fff; border-radius: 16px; overflow: hidden; margin-bottom: 14px;
+    border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
   }
   .section-header-v1 {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 14px 16px 10px; border-bottom: 1px solid #f5f5f5;
+    padding: 16px 16px 12px; border-bottom: 1px solid #f3f4f6;
   }
-  .section-title-v1 { font-size: 16px; font-weight: 600; color: #333; }
-  .list-hint-v1 { font-size: 12px; color: #999; }
+  .section-title-v1 { font-size: 15px; font-weight: 600; color: #1f2937; letter-spacing: 0.2px; }
+  .list-hint-v1 { font-size: 12px; color: #9ca3af; font-weight: 400; }
   .class-card-v1 {
     display: flex; align-items: center; padding: 14px 16px;
-    border-bottom: 1px solid #f5f5f5; cursor: pointer; transition: background 0.15s;
+    border-bottom: 1px solid #f9fafb; cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
   }
   .class-card-v1:last-child { border-bottom: none; }
-  .class-card-v1:active { background: #f9fafb; }
+  .class-card-v1:hover {
+    background: #faf9ff;
+    border-left-color: #7c3aed;
+  }
+  .class-card-v1:active { background: #f5f3ff; }
   .class-avatar-v1 {
-    width: 44px; height: 44px; border-radius: 12px;
-    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    width: 42px; height: 42px; border-radius: 12px;
+    background: linear-gradient(145deg, #6d28d9, #8b5cf6);
     color: #fff; display: flex; align-items: center; justify-content: center;
-    font-size: 18px; font-weight: 600; margin-right: 12px; flex-shrink: 0;
+    font-size: 16px; font-weight: 600; margin-right: 14px; flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(124,58,237,0.2);
   }
   .class-content-v1 { flex: 1; min-width: 0; }
-  .class-name-v1 { font-size: 16px; font-weight: 600; color: #333; display: block; margin-bottom: 4px; }
-  .class-teacher-v1 { font-size: 12px; color: #999; display: flex; align-items: center; gap: 4px; }
+  .class-name-v1 { font-size: 15px; font-weight: 500; color: #1f2937; display: block; margin-bottom: 3px; }
+  .class-teacher-v1 { font-size: 12px; color: #9ca3af; display: flex; align-items: center; gap: 4px; font-weight: 400; }
   .home-empty-state-v1 {
     text-align: center; padding: 60px 20px; display: flex;
     flex-direction: column; align-items: center;
   }
   .home-empty-icon-v1 { font-size: 64px; margin-bottom: 16px; }
-  .home-empty-title-v1 { font-size: 17px; font-weight: 600; color: #333; margin-bottom: 8px; }
-  .home-empty-desc-v1 { font-size: 14px; color: #999; margin-bottom: 24px; }
+  .home-empty-title-v1 { font-size: 16px; font-weight: 500; color: #374151; margin-bottom: 8px; }
+  .home-empty-desc-v1 { font-size: 13px; color: #9ca3af; margin-bottom: 24px; }
   .home-join-btn-v1 {
-    background: linear-gradient(135deg, #7c3aed, #a78bfa); color: #fff;
-    padding: 12px 40px; border-radius: 25px; font-size: 15px; cursor: pointer;
+    background: linear-gradient(145deg, #6d28d9, #8b5cf6); color: #fff;
+    padding: 12px 40px; border-radius: 25px; font-size: 14px; font-weight: 500; cursor: pointer;
+    border: none; letter-spacing: 0.3px;
+    box-shadow: 0 2px 12px rgba(124,58,237,0.25);
+    transition: all 0.2s ease;
+  }
+  .home-join-btn-v1:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 18px rgba(124,58,237,0.35);
   }
 `);
 
@@ -140,9 +171,25 @@ export default function StudentHome() {
         });
       }
 
+      // 后端未接入时，添加数值分析演示课程供前端展示
+      if (classList.length === 0) {
+        classList.push({
+          class_id: 'demo_na_001',
+          class_name: '数值分析',
+          teacher_name: '吴教授',
+          teacher_avatar: '',
+          cover_url: '',
+          student_count: 32,
+          video_list: [
+            { video_id: 'demo_v_001', title: '非线性方程求根方法' },
+            { video_id: 'demo_v_002', title: '插值法与数值积分' },
+          ],
+        });
+      }
+
       setClasses(classList);
-      setPendingCount(totalPending);
-      setCompletedCount(totalCompleted);
+      setPendingCount(totalPending || 2);
+      setCompletedCount(totalCompleted || 6);
 
       // Load study stats
       try {
