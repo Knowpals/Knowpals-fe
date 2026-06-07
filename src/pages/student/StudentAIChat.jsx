@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { message } from 'antd';
 import request from '../../utils/request';
+import BackArrow from '../../components/BackArrow';
 import { injectStyles } from '../../utils/injectStyles';
+import '../../utils/sharedPageStyles';
 
 injectStyles('student-aichat', `
   .ai-chat-page-v1 {
@@ -249,7 +251,7 @@ const StudentAIChat = () => {
     <div className="ai-chat-page-v1">
       {/* 导航栏 */}
       <div className="ai-chat-nav-v1">
-        <div className="ai-chat-nav-back-v1" onClick={() => navigate(-1)}>←</div>
+        <BackArrow onClick={() => navigate(-1)} />
         <span className="ai-chat-nav-title-v1">AI 伴学助手</span>
         <span className="ai-chat-status-v1 online">在线</span>
       </div>

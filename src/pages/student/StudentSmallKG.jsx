@@ -7,7 +7,9 @@ import {
   MinusCircleFilled,
 } from '@ant-design/icons';
 import GraphNode from '../../components/GraphNode';
+import BackArrow from '../../components/BackArrow';
 import AIFloatButton from '../../components/AIFloatButton';
+import '../../utils/sharedPageStyles';
 import { getSmallKG } from '../../services/studentApi';
 import { injectStyles } from '../../utils/injectStyles';
 
@@ -132,7 +134,7 @@ export default function StudentSmallKG() {
     <div className="small-kg-page-v2">
       <div className="small-kg-header-v2">
         <div className="small-kg-header-content-v2">
-          <div className="small-kg-back-btn-v2" onClick={() => navigate(-1)}>←</div>
+          <BackArrow onClick={() => navigate(-1)} />
           <div className="small-kg-title-section-v2">
             <span className="small-kg-title-v2">{decodeURIComponent(pageTitle)}</span>
             <span className="small-kg-subtitle-v2">知识点图谱</span>

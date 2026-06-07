@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spin, message } from 'antd';
+import BackArrow from '../../components/BackArrow';
 import AIFloatButton from '../../components/AIFloatButton';
 import { getDeepPractice } from '../../services/studentApi';
 import { injectStyles } from '../../utils/injectStyles';
+import '../../utils/sharedPageStyles';
 
 injectStyles('student-deep-practice', `
   .dp-page-v2 { min-height: 100vh; background: #f5f7fa; }
@@ -342,7 +344,7 @@ export default function StudentDeepPractice() {
     <div className="dp-page-v2">
       <div className="dp-header-v2">
         <div className="dp-header-content-v2">
-          <div className="dp-back-btn-v2" onClick={() => navigate(-1)}>‹</div>
+          <BackArrow onClick={() => navigate(-1)} />
           <span className="dp-header-title-v2">{decodeURIComponent(pageTitle)}</span>
           <div style={{ width: 40 }} />
         </div>

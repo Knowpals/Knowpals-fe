@@ -9,33 +9,59 @@ injectStyles('student-layout', `
     max-width: 480px; margin: 0 auto; min-height: 100vh;
     background: #f5f5f5; position: relative; padding-bottom: 60px;
   }
+  /* 页面全局背景纹理 */
+  .student-app::before {
+    content: ''; position: fixed; inset: 0; z-index: 0;
+    background: url('/页面全局背景纹理.png') repeat;
+    background-size: 400px 400px;
+    opacity: 0.06; pointer-events: none;
+  }
   .student-header {
-    position: sticky; top: 0; z-index: 100; background: #fff;
+    position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     padding: 12px 16px; display: flex; align-items: center;
     justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   }
-  .student-logo { font-size: 20px; font-weight: 700; color: #7c3aed; }
-  .student-header-right { display: flex; align-items: center; cursor: pointer; }
+  /* 顶部导航栏光晕 */
+  .student-header::after {
+    content: ''; position: absolute; top: -20px; left: 0; right: 0; height: 80px;
+    background: url('/顶部导航栏光晕.png') center top / cover no-repeat;
+    opacity: 0.25; pointer-events: none; z-index: -1;
+  }
+  .student-logo { font-size: 20px; font-weight: 700; color: #7c3aed; position: relative; z-index: 1; }
+  .student-header-right { display: flex; align-items: center; cursor: pointer; position: relative; z-index: 1; }
   .student-avatar {
     width: 32px; height: 32px; border-radius: 50%; background: #ede9fe;
     display: flex; align-items: center; justify-content: center; color: #7c3aed;
   }
   .student-page-title {
-    background: #fff; padding: 12px 16px; font-size: 18px;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 12px 16px; font-size: 18px;
     font-weight: 600; color: #1f2937; border-bottom: 1px solid #f3f4f6;
+    position: relative; z-index: 1;
   }
-  .student-content { padding: 12px 16px; }
+  .student-content { padding: 12px 16px; position: relative; z-index: 1; }
   .student-tabbar {
     position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 480px; height: 56px; background: #fff;
+    width: 100%; max-width: 480px; height: 56px;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     display: flex; align-items: center; justify-content: space-around;
     box-shadow: 0 -1px 8px rgba(0,0,0,0.06); z-index: 100;
     padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid rgba(124,58,237,0.06);
+  }
+  /* 底部导航栏光带 */
+  .student-tabbar::before {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 56px;
+    background: url('/底部导航栏光带.png') center bottom / cover no-repeat;
+    opacity: 0.2; pointer-events: none;
   }
   .student-tabbar-item {
     flex: 1; display: flex; flex-direction: column; align-items: center;
     justify-content: center; padding: 4px 0; cursor: pointer;
-    color: #9ca3af; transition: color 0.2s;
+    color: #9ca3af; transition: color 0.2s; position: relative; z-index: 1;
   }
   .student-tabbar-item.active { color: #7c3aed; }
   .student-tabbar-icon { font-size: 20px; margin-bottom: 2px; }

@@ -213,13 +213,15 @@ const StudentVideoLearning = () => {
   const navigate = useNavigate();
   const videoRef = useRef(null);
 
+  const DEMO_VIDEO = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
   // 视频状态
-  const [videoSrc, setVideoSrc] = useState('');
+  const [videoSrc, setVideoSrc] = useState(DEMO_VIDEO); // 默认用演示视频，避免黑屏
   const [videoTitle, setVideoTitle] = useState('加载中...');
   const [videoDuration, setVideoDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showPlayBtn, setShowPlayBtn] = useState(true);
+  const [videoError, setVideoError] = useState('');
 
   // 进度
   const [currentTime, setCurrentTime] = useState(0);
@@ -340,13 +342,25 @@ const StudentVideoLearning = () => {
 
   const loadVideoData = async () => {
     setIsLoading(true);
+    setVideoError('');
     try {
       const res = await request.get(`/video/getDetail/${videoId}`);
+      console.log('[VideoLearning] API 返回数据:', JSON.stringify(res, null, 2));
       if ((res.code === 0 || res.code === 200) && res.data) {
         processVideoData(res.data);
+      } else {
+        const msg = '视频数据异常，请联系管理员';
+        setVideoError(msg);
+        message.error(msg);
       }
     } catch (err) {
-      console.error('加载视频失败:', err);
+      console.error('[VideoLearning] 加载视频失败:', err);
+      // 接口不可用时自动使用演示视频
+      setVideoSrc(DEMO_VIDEO);
+      setVideoTitle(searchParams.get('title') || '演示视频（后端未连接）');
+      const msg = '后端接口未连接，正在播放演示视频';
+      setVideoError(msg);
+      console.log('[VideoLearning]', msg);
     } finally {
       setIsLoading(false);
     }
@@ -379,10 +393,25 @@ const StudentVideoLearning = () => {
 
   const processVideoData = (videoData) => {
     const possibleUrlFields = ['url', 'play_url', 'video_url', 'videoUrl', 'src', 'video_src'];
-    let videoUrl = '';
+    let rawUrl = '';
     for (const field of possibleUrlFields) {
-      if (videoData[field]) { videoUrl = videoData[field]; break; }
+      if (videoData[field]) { rawUrl = videoData[field]; break; }
     }
+    console.log('[VideoLearning] 原始视频 URL:', rawUrl || '(空)');
+
+    // 处理相对路径：以 / 开头但不以 /api 开头的路径，通过 Vite proxy 代理访问
+    let videoUrl = rawUrl;
+    if (rawUrl && rawUrl.startsWith('/') && !rawUrl.startsWith('/api/') && !rawUrl.startsWith('/api?')) {
+      videoUrl = '/api/v1' + rawUrl;
+      console.log('[VideoLearning] 相对路径已转换为代理路径:', videoUrl);
+    }
+
+    if (!videoUrl) {
+      // 后端视频源不可用时，使用演示视频兜底（比赛演示用）
+      videoUrl = 'https://www.w3schools.com/html/mov_bbb.mp4';
+      console.log('[VideoLearning] 使用演示视频兜底:', videoUrl);
+    }
+
     setVideoSrc(videoUrl);
 
     let duration = videoData.duration || 0;
@@ -717,6 +746,13 @@ const StudentVideoLearning = () => {
           <div className="video-placeholder-v1">
             <div className="video-spinner-v1" />
             <div className="video-loading-text-v1">正在加载视频...</div>
+          </div>
+        )}
+        {!isLoading && videoError && (
+          <div className="video-placeholder-v1">
+            <div style={{ color: '#f87171', fontSize: 40, marginBottom: 12 }}>⚠</div>
+            <div style={{ color: '#fff', fontSize: 14, padding: '0 20px', textAlign: 'center' }}>{videoError}</div>
+            <div style={{ color: '#999', fontSize: 12, marginTop: 8, cursor: 'pointer', textDecoration: 'underline' }} onClick={() => loadVideoData()}>点击重试</div>
           </div>
         )}
         <video

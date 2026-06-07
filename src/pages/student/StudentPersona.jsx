@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spin } from 'antd';
+import * as echarts from 'echarts';
+import BackArrow from '../../components/BackArrow';
 import { getStudentPersona } from '../../services/studentApi';
 import { injectStyles } from '../../utils/injectStyles';
+import '../../utils/sharedPageStyles';
 
 injectStyles('student-persona', `
   .persona-page-v2 { min-height: 100vh; background: #f8f9fa; }
@@ -57,6 +60,7 @@ injectStyles('student-persona', `
   .persona-behavior-item-v2 { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
   .persona-behavior-label-v2 { color: #6b7280; }
   .persona-behavior-value-v2 { color: #333; font-weight: 500; }
+  .persona-radar-chart { width: 100%; height: 280px; }
   .persona-suggestion-v2 { font-size: 13px; color: #666; line-height: 1.6; }
   .persona-path-v2 { display: flex; flex-direction: column; gap: 6px; }
   .persona-path-item-v2 {
@@ -86,10 +90,12 @@ const demoPersona = {
   strengths: ['计算能力突出', '逻辑推理强', '概念理解快'],
   weaknesses: ['应用创新能力待提升', '数值实验经验少'],
   dimensions: [
-    { label: '计算能力', value: 85, color: '#7c3aed' },
-    { label: '逻辑推理', value: 72, color: '#7c3aed' },
-    { label: '知识记忆', value: 60, color: '#f59e0b' },
-    { label: '应用创新', value: 45, color: '#ef4444' },
+    { label: '计算能力', value: 85 },
+    { label: '逻辑推理', value: 72 },
+    { label: '概念理解', value: 78 },
+    { label: '应用创新', value: 45 },
+    { label: '编程实现', value: 60 },
+    { label: '理论证明', value: 55 },
   ],
   chapters: [
     { name: '插值法', kps: ['概念', 'Lagrange', 'Newton', 'Hermite', '分段', '样条'], scores: [90, 85, 68, 55, 60, 45] },
@@ -123,12 +129,42 @@ function heatColor(score) {
 
 export default function StudentPersona() {
   const navigate = useNavigate();
+  const radarRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [persona, setPersona] = useState(null);
 
+  useEffect(() => { loadPersona(); }, []);
+
+  // 雷达图
   useEffect(() => {
-    loadPersona();
-  }, []);
+    if (!radarRef.current || !persona?.dimensions) return;
+    const inst = echarts.init(radarRef.current);
+    const dims = persona.dimensions;
+    inst.setOption({
+      radar: {
+        center: ['50%', '55%'],
+        radius: '65%',
+        indicator: dims.map(d => ({ name: d.label, max: 100 })),
+        axisName: { fontSize: 11, color: '#6b7280' },
+        splitArea: { areaStyle: { color: ['#fff', '#f8f9fa', '#fff', '#f8f9fa', '#fff'] } },
+      },
+      series: [{
+        type: 'radar',
+        data: [{
+          value: dims.map(d => d.value),
+          name: '当前能力',
+          areaStyle: { color: 'rgba(124,58,237,0.15)' },
+          lineStyle: { color: '#7c3aed', width: 2 },
+          itemStyle: { color: '#7c3aed' },
+          symbol: 'circle',
+          symbolSize: 6,
+        }],
+      }],
+    });
+    const onResize = () => inst.resize();
+    window.addEventListener('resize', onResize);
+    return () => { window.removeEventListener('resize', onResize); inst.dispose(); };
+  }, [persona]);
 
   const loadPersona = async () => {
     setLoading(true);
@@ -149,7 +185,7 @@ export default function StudentPersona() {
     <div className="persona-page-v2">
       <div className="persona-header-v2">
         <div className="persona-header-content-v2">
-          <div className="persona-back-btn-v2" onClick={() => navigate(-1)}>←</div>
+          <BackArrow onClick={() => navigate(-1)} />
           <span className="persona-header-title-v2">学习画像</span>
         </div>
       </div>
@@ -182,20 +218,10 @@ export default function StudentPersona() {
               </div>
             </div>
 
-            {/* 能力维度 */}
+            {/* 能力维度 - ECharts 雷达图 */}
             <div className="persona-section-v2">
               <div className="persona-section-title-v2">能力维度</div>
-              <div className="persona-radar-v2">
-                {data.dimensions?.map(dim => (
-                  <div key={dim.label} className="persona-radar-item-v2">
-                    <span className="persona-radar-label-v2">{dim.label}</span>
-                    <div className="persona-radar-bar-v2">
-                      <div className="persona-radar-fill-v2" style={{ width: `${dim.value}%`, background: dim.color }} />
-                    </div>
-                    <span className="persona-radar-value-v2">{dim.value}</span>
-                  </div>
-                ))}
-              </div>
+              <div ref={radarRef} className="persona-radar-chart" />
             </div>
 
             {/* 知识点掌握热力图 */}

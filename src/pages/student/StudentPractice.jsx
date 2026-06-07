@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spin, message } from 'antd';
 import request from '../../utils/request';
+import BackArrow from '../../components/BackArrow';
 import AIFloatButton from '../../components/AIFloatButton';
 import { injectStyles } from '../../utils/injectStyles';
+import '../../utils/sharedPageStyles';
 
 injectStyles('student-practice', `
   .practice-page-v1 { min-height: 100vh; background: #f5f7fa; }
@@ -227,7 +229,7 @@ const StudentPractice = () => {
       {/* 顶部导航 */}
       <div className="practice-header-v1">
         <div className="practice-header-content-v1">
-          <div className="practice-back-btn-v1" onClick={() => navigate(-1)}>‹</div>
+          <BackArrow onClick={() => navigate(-1)} />
           <span className="practice-header-title-v1">{decodeURIComponent(pageTitle)}</span>
           <div style={{ width: 40 }} />
         </div>
