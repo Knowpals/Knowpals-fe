@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Button, Spin } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '../../layouts/TeacherLayout';
-import { getMyUploadedVideos } from '../../services/teacherApi';
+import { getReviewVideos } from '../../services/teacherApi';
 
 const PendingReview = () => {
   const navigate = useNavigate();
@@ -16,13 +16,9 @@ const PendingReview = () => {
   const fetchPendingVideos = async () => {
     setLoading(true);
     try {
-      const res = await getMyUploadedVideos();
-      const videos = res.data?.videos || [];
-      // 筛选待审核的视频（状态为 pending 或 reviewing）
-      const pending = videos.filter(
-        (v) => v.status === 'pending' || v.status === 'reviewing' || v.status === 'review'
-      );
-      setPendingVideos(pending);
+      const res = await getReviewVideos();
+      // 新版接口直接返回待审核视频列表
+      setPendingVideos(res.data?.videos || []);
     } catch (error) {
       console.error('获取待审核列表失败:', error);
     } finally {

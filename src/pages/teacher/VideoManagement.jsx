@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import dayjs from 'dayjs';
 import {
   Card, Button, Modal, Input, message,
-  Space, Dropdown, Typography, Spin, Upload, DatePicker
+  Space, Dropdown, Typography, Spin, Upload, DatePicker, Progress, Tag
 } from 'antd';
 import { PlusOutlined, MoreOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '../../layouts/TeacherLayout';
-import { getMyUploadedVideos, uploadVideo } from '../../services/teacherApi';
+import { getMyUploadedVideos, uploadVideo, getTaskProcess } from '../../services/teacherApi';
 
 const { Text } = Typography;
 
@@ -16,6 +16,10 @@ const VideoManagement = () => {
   const [videoList, setVideoList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [processModal, setProcessModal] = useState(false);
+  const [processStage, setProcessStage] = useState('');
+  const [processStatus, setProcessStatus] = useState('');
+  const [currentJobId, setCurrentJobId] = useState(null);
   const [addModal, setAddModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
   const [currentDeleteId, setCurrentDeleteId] = useState(null);
@@ -39,6 +43,55 @@ const VideoManagement = () => {
     }
   };
 
+  // 轮询 AI 处理进度
+  const pollTaskProcess = async (jobId) => {
+    const stages = [
+      { key: 'uploading', label: '视频上传完成' },
+      { key: 'segmenting', label: 'AI 正在进行视频分段' },
+      { key: 'extracting', label: 'AI 正在提取知识点' },
+      { key: 'generating', label: 'AI 正在生成互动题目' },
+      { key: 'completed', label: '处理完成' },
+    ];
+
+    let attempts = 0;
+    const maxAttempts = 30; // 最多轮询 5 分钟
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await getTaskProcess(jobId);
+        const { stage, status } = res.data || {};
+        setProcessStage(stage);
+        setProcessStatus(status);
+
+        const isDone = status === 'completed' || status === 'success' || status === 'done';
+        const isFailed = status === 'failed' || status === 'error';
+        if (isDone || isFailed || attempts >= maxAttempts) {
+          clearInterval(interval);
+          if (isDone) {
+            setProcessStage('completed');
+            message.success('视频 AI 处理完成！');
+            setTimeout(() => {
+              setProcessModal(false);
+              fetchVideoList();
+            }, 2000);
+          } else if (isFailed) {
+            setProcessStatus('failed');
+            message.error(`AI 处理失败（阶段: ${stage || '未知'}），请重试或联系后端排查 job_id: ${jobId}`, 6);
+            // 不自动关闭弹窗，让用户看到失败状态
+          } else if (attempts >= maxAttempts) {
+            setProcessStatus('timeout');
+            message.warning('AI 处理超时，请稍后在视频编辑页手动刷新');
+          }
+        }
+      } catch {
+        clearInterval(interval);
+        setProcessModal(false);
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  };
+
   // 上传视频
   const handleUpload = async () => {
     if (!file) {
@@ -57,10 +110,8 @@ const VideoManagement = () => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('title', videoTitle);
-    // deadline 已经包含时间（showTime），直接使用
     formData.append('deadline', deadline);
 
-    // 调试：打印 FormData 内容
     console.log('上传视频数据:');
     console.log('- file:', file ? file.name : '无');
     console.log('- title:', videoTitle);
@@ -75,15 +126,23 @@ const VideoManagement = () => {
       setVideoTitle('');
       setFile(null);
       setDeadline('');
-      fetchVideoList();
+
+      // 如果有 job_id，开启处理进度追踪
+      const jobId = res.data?.job_id;
+      if (jobId) {
+        setCurrentJobId(jobId);
+        setProcessStage('uploading');
+        setProcessStatus('running');
+        setProcessModal(true);
+        pollTaskProcess(jobId);
+      } else {
+        fetchVideoList();
+      }
     } catch (error) {
-      // 打印完整的错误响应
       console.error('上传错误详情:', error);
-      console.error('错误响应完整:', JSON.stringify(error.response?.data, null, 2));
-      
-      const errorMsg = 
+      const errorMsg =
         error.message ||
-        error.response?.data?.message || 
+        error.response?.data?.message ||
         error.response?.data?.error ||
         error.response?.data?.msg ||
         error.response?.data ||
@@ -328,6 +387,56 @@ const VideoManagement = () => {
         cancelText="取消"
         okButtonProps={{ danger: true }}
       />
+
+      {/* AI 处理进度弹窗 */}
+      <Modal
+        title="视频AI处理进度"
+        open={processModal}
+        onCancel={() => setProcessModal(false)}
+        footer={
+          (processStatus === 'completed' || processStatus === 'failed' || processStatus === 'timeout') ? (
+            <Button type="primary" onClick={() => setProcessModal(false)}>关闭</Button>
+          ) : null
+        }
+        closable={processStatus === 'completed' || processStatus === 'failed' || processStatus === 'timeout'}
+        maskClosable={false}
+      >
+        <div style={{ textAlign: 'center', padding: '16px 0' }}>
+          <Progress
+            type="circle"
+            percent={
+              processStage === 'completed' ? 100
+              : processStage === 'generating' ? 80
+              : processStage === 'extracting' ? 55
+              : processStage === 'segmenting' ? 30
+              : 10
+            }
+            status={processStatus === 'failed' ? 'exception' : processStage === 'completed' ? 'success' : 'active'}
+            strokeColor="#722ed1"
+          />
+          <div style={{ marginTop: 24, fontSize: 16, fontWeight: 500 }}>
+            {processStatus === 'failed' ? 'AI 处理失败'
+              : processStatus === 'timeout' ? '处理超时'
+              : processStage === 'completed' ? '处理完成'
+              : processStage === 'generating' ? '正在生成互动题目...'
+              : processStage === 'extracting' ? '正在提取知识点...'
+              : processStage === 'segmenting' ? '正在视频分段...'
+              : '任务等待处理中...'}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
+            Job ID: {currentJobId}
+          </div>
+          {processStatus === 'failed' && (
+            <Tag color="error" style={{ marginTop: 12 }}>请重试上传，或联系后端排查</Tag>
+          )}
+          {processStatus === 'timeout' && (
+            <Tag color="warning" style={{ marginTop: 12 }}>可在视频编辑页手动刷新状态</Tag>
+          )}
+          {processStatus !== 'failed' && processStatus !== 'timeout' && processStatus !== 'completed' && (
+            <Tag color="processing" style={{ marginTop: 12 }}>AI 自动处理中，请稍候...</Tag>
+          )}
+        </div>
+      </Modal>
     </MainLayout>
   );
 };

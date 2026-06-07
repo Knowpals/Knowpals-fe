@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Modal, Select, Input, Button, message,
+  Modal, Select, Input, Button, message, Tag, Card,
   Typography, Space, Alert, Drawer, Spin
 } from 'antd';
-import { PlusOutlined, RobotOutlined, UploadOutlined } from '@ant-design/icons';
+import { PlusOutlined, RobotOutlined, UploadOutlined, NodeIndexOutlined } from '@ant-design/icons';
+import ReactECharts from 'echarts-for-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import MainLayout from '../../layouts/TeacherLayout';
-import { getVideoDetail, generateQuestions, postVideoToClass, getMyCreatedClasses, publishVideo, startVideoReview } from '../../services/teacherApi';
+import { getVideoDetail, generateQuestions, getMyCreatedClasses, publishVideo, agentQuiz, getMyUploadedVideos, addQuestion, updateQuestion, deleteQuestion } from '../../services/teacherApi';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -23,6 +24,7 @@ const VideoDetailEdit = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [questionType, setQuestionType] = useState('选择题');
+  const [quizCount, setQuizCount] = useState(5);
 
   // 互动点相关
   const [pointList, setPointList] = useState([]);
@@ -37,7 +39,7 @@ const VideoDetailEdit = () => {
 
   // 班级列表
   const [classList, setClassList] = useState([]);
-  const [selectedClassId, setSelectedClassId] = useState(null);
+  const [selectedClassIds, setSelectedClassIds] = useState([]);
 
   // 表单数据
   const [formData, setFormData] = useState({
@@ -89,7 +91,7 @@ const VideoDetailEdit = () => {
       
       // 填充表单
       setFormData({
-        title: currentPoint.title || currentPoint.question_title || currentPoint.questionTitle || '',
+        title: currentPoint.title || currentPoint.content || currentPoint.question_title || currentPoint.questionTitle || '',
         insertTime: String(currentPoint.time || currentPoint.insert_time || currentPoint.insertTime || currentPoint.timestamp || ''),
         options: options.slice(0, 4),
         correctAnswer: currentPoint.answer || currentPoint.correctAnswer || currentPoint.right_answer || currentPoint.answer_key || '',
@@ -117,65 +119,56 @@ const VideoDetailEdit = () => {
   const fetchVideoDetail = async () => {
     setLoading(true);
     try {
-      // 只获取视频详情，segments 数据在详情接口中返回
-      const res = await getVideoDetail(videoId);
-      const detailData = res.data;
-      
-      // segments 数据从详情中获取
-      const segments = detailData?.segments || [];
-      
-      console.log('获取视频详情原始数据:', detailData);
-      console.log('视频分段数据:', segments);
-      
+      const [detailRes, videosRes] = await Promise.all([
+        getVideoDetail(videoId),
+        getMyUploadedVideos(),
+      ]);
+      const detailData = detailRes.data;
+
+      // getVideoDetail 不返回 status，从上传列表中匹配
+      const videoList = videosRes.data?.videos || [];
+      const targetId = parseInt(videoId);
+      const matchedVideo = videoList.find(
+        (v) => (v.video_id || v.id) === targetId
+      );
+      // 兼容空字符串：只有明确的值才使用，否则 fallback
+      const rawStatus = matchedVideo?.status;
+      detailData.status = (rawStatus && rawStatus !== '') ? rawStatus : 'pending';
+
+      console.log('状态匹配: videoId=%d, matched=%o, rawStatus=%s, final=%s',
+        targetId, matchedVideo, rawStatus, detailData.status);
       setVideoData(detailData);
-      
-      // 优先从顶级 questions 字段获取互动点（新接口）
-      // 如果不存在则回退到从 segments 中提取（旧接口兼容）
-      let questions = detailData?.questions || [];
-      if (questions.length === 0 && segments && segments.length > 0) {
+
+      // 从 getVideoDetail 提取题目（segments + top-level questions）
+      const segments = detailData?.segments || [];
+      let questions = [];
+      if (segments.length > 0) {
         questions = segments
-          .filter(seg => seg.question && Object.keys(seg.question).length > 0) // 过滤掉空对象
+          .filter(seg => seg.question && Object.keys(seg.question).length > 0)
           .map(seg => ({
             ...seg.question,
-            segment_id: seg.id,  // 保存分段的 id 作为 segment_id
-            time: seg.start      // 使用分段的 start 时间作为互动点时间
+            id: seg.question.id,
+            title: seg.question.content || seg.question.title || '',
+            content: seg.question.content || seg.question.title || '',
+            typeLabel: getQuestionTypeLabel(seg.question.type),
+            time: seg.start ? seg.start / 1000 : 0,
+            segment_id: seg.id,
           }));
       }
-      
-      console.log('从视频分段提取的互动点:', questions);
-      if (questions.length > 0) {
-        console.log('第一个互动点字段:', Object.keys(questions[0]));
-      }
-      
-      // 处理互动点：为每个互动点添加中文类型标签和时间
-      const processedQuestions = questions.map((q, idx) => {
-        // 确保 segment_id 不为 null
-        const segmentId = q.segment_id ?? q.segmentId ?? (segments.length > 0 ? segments[0].id : 0);
-        
-        // 通过 segment_id 查找对应分段的时间
-        let time = 0;
-        if (segments.length > 0) {
-          const segment = segments.find(s => s.id === segmentId || s.segment_id === segmentId);
-          if (segment) {
-            time = segment.start || segment.end || 0;
-          }
-        }
-        
-        // 如果找不到对应分段但有 segments，平均分配时间
-        if (time === 0 && segments.length > 0 && questions.length > 0) {
-          time = Math.floor((detailData.duration / (questions.length + 1)) * (idx + 1));
-        }
-        
-        return {
+      if (questions.length === 0) {
+        const topQuestions = detailData?.questions || [];
+        questions = topQuestions.map(q => ({
           ...q,
-          segment_id: segmentId,
-          time: time,
-          typeLabel: getQuestionTypeLabel(q.type || q.question_type) // 添加中文类型标签
-        };
-      });
-      
-      console.log('处理后的互动点（含time和typeLabel字段）:', processedQuestions);
-      setPointList(processedQuestions);
+          id: q.id,
+          title: q.content || q.title || '',
+          typeLabel: getQuestionTypeLabel(q.type),
+          time: 0,
+          segment_id: q.segment_id || 0,
+        }));
+      }
+
+      console.log('题目列表:', questions);
+      setPointList(questions);
     } catch (error) {
       console.error('获取视频详情失败:', error);
       message.error(error.message || '获取视频详情失败');
@@ -194,49 +187,45 @@ const VideoDetailEdit = () => {
     }
   };
 
-  // 打开发布弹窗
-  const handleOpenPublish = async () => {
+  // 保存当前状态引用，避免后台刷新用空值覆盖乐观更新
+  const statusRef = useRef(videoData?.status);
+
+  // 刷新视频状态（后端未返回有效状态时，保留当前前端状态不覆盖）
+  const refreshVideoStatus = async () => {
+    try {
+      const [detailRes, videosRes] = await Promise.all([
+        getVideoDetail(videoId),
+        getMyUploadedVideos(),
+      ]);
+      const updatedData = detailRes.data;
+      const videoList = videosRes.data?.videos || [];
+      const matched = videoList.find(
+        (v) => (v.video_id || v.id) === parseInt(videoId)
+      );
+      const rawStatus = matched?.status;
+
+      // 只在后端返回了有效状态时才更新；否则保留当前状态
+      if (rawStatus && rawStatus !== '') {
+        updatedData.status = rawStatus;
+      }
+      // 否则 updatedData.status 保持 undefined，setVideoData 时不会覆盖已有 status
+
+      setVideoData(prev => {
+        const newStatus = (rawStatus && rawStatus !== '') ? rawStatus : prev.status;
+        statusRef.current = newStatus;
+        return { ...updatedData, status: newStatus };
+      });
+    } catch {
+      // 静默失败，不影响当前页面状态
+    }
+  };
+
+  // 打开「下发到班级」弹窗
+  const handleOpenAssignClass = () => {
     if (!isValidVideoId) {
       message.error('视频ID无效');
       return;
     }
-    
-    const currentStatus = videoData?.status || 'pending';
-    
-    // 检查视频是否有URL
-    if (!videoData?.url) {
-      message.error('视频未上传，无法发布');
-      return;
-    }
-    
-    // 如果视频未发布，需要先提交审核，再发布
-    if (currentStatus !== 'published') {
-      try {
-        // 1. 先提交视频进入审核
-        message.loading({ content: '视频审核中...', key: 'publish-video', duration: 0 });
-        console.log('开始提交审核, videoId:', videoId);
-        await startVideoReview(videoId);
-        console.log('审核提交成功');
-        
-        // 2. 再发布视频
-        message.loading({ content: '视频发布中...', key: 'publish-video', duration: 0 });
-        console.log('开始发布视频, videoId:', videoId);
-        await publishVideo(videoId);
-        console.log('视频发布成功');
-        
-        message.success({ content: '视频发布成功！', key: 'publish-video', duration: 2 });
-        // 刷新视频详情并更新本地状态
-        const res = await getVideoDetail(videoId);
-        setVideoData(res.data);
-      } catch (error) {
-        console.error('视频发布失败:', error);
-        console.error('错误详情:', error.response?.data);
-        const errorMsg = error.response?.data?.msg || error.response?.data?.message || error.message || '视频发布失败';
-        message.error({ content: errorMsg, key: 'publish-video', duration: 3 });
-        return;
-      }
-    }
-    
     fetchClassList();
     setIsPublishModalOpen(true);
   };
@@ -269,48 +258,54 @@ const VideoDetailEdit = () => {
     setEditModalOpen(true);
   };
 
-  // AI生成互动点
+  // AI生成互动点（优先使用新版 agent/quiz，支持指定数量）
   const handleAIGenerate = async () => {
     if (!isValidVideoId) {
       message.error('视频ID无效，无法生成互动点');
       return;
     }
     setIsGenerating(true);
-    message.loading({ content: '互动点生成中...', key: 'ai-generate', duration: 0 });
+    message.loading({ content: `正在生成 ${quizCount} 道互动点...`, key: 'ai-generate', duration: 0 });
     try {
-      const res = await generateQuestions(videoId);
-      console.log('AI生成原始数据:', res.data);
-      
-      // 兼容多种返回格式
-      let questions = res.data?.questions 
-        || res.data?.data?.questions 
-        || res.data?.question_list 
-        || res.data?.interactions 
-        || res.data?.items 
-        || [];
-      
-      // 如果返回的是对象而非数组
-      if (!Array.isArray(questions) && typeof questions === 'object') {
-        questions = Object.values(questions);
+      let questions = [];
+
+      // 优先用新版 agent/quiz API
+      try {
+        const res = await agentQuiz({ num_questions: quizCount, video_id: String(videoId) });
+        questions = res.data?.quizzes || [];
+        // 新版 API 返回 question 字段，映射为 content/title
+        questions = questions.map((q) => ({
+          ...q,
+          content: q.question || q.content,
+          title: q.question || q.content || '',
+          typeLabel: getQuestionTypeLabel(q.type),
+          time: 0,
+        }));
+      } catch {
+        // 新版 API 失败，回退到旧版 generateQuestions
+        console.log('新版 agent/quiz 失败，回退到旧版 question/generate');
+        const res = await generateQuestions(videoId);
+        let raw = res.data?.questions || res.data?.data?.questions || res.data?.question_list || res.data?.interactions || res.data?.items || [];
+        if (!Array.isArray(raw) && typeof raw === 'object') {
+          raw = Object.values(raw);
+        }
+        questions = raw;
       }
-      
-      console.log('AI生成的问题列表:', questions);
-      console.log('AI接口返回的完整数据:', JSON.stringify(res.data, null, 2));
-      
-      if (questions[0]) {
-        console.log('第一个问题的所有字段:', Object.keys(questions[0]));
+
+      if (questions.length === 0) {
+        message.warning({ content: '未能生成互动点，请稍后重试', key: 'ai-generate', duration: 2 });
+        return;
       }
-      
-      // 将AI生成的互动点追加到现有列表
-      const allPoints = [...pointList, ...questions];
-      console.log('更新后的完整列表:', allPoints);
-      // 打印每个项目的字段
-      allPoints.forEach((point, idx) => {
-        console.log(`互动点${idx + 1}的字段:`, Object.keys(point));
-        console.log(`互动点${idx + 1}的完整数据:`, point);
-      });
+
+      const allPoints = [...pointList, ...questions.map((q) => ({
+        ...q,
+        title: q.title || q.content || q.question || q.question_title || '',
+        typeLabel: q.typeLabel || getQuestionTypeLabel(q.type || q.question_type),
+        time: q.time || q.insert_time || q.insertTime || 0,
+      }))];
+
       setPointList(allPoints);
-      message.success({ content: `成功生成${questions.length}个互动点！`, key: 'ai-generate', duration: 2 });
+      message.success({ content: `成功生成 ${questions.length} 个互动点！`, key: 'ai-generate', duration: 2 });
     } catch (error) {
       const errorMsg = error.response?.data?.msg || error.response?.data?.message || error.message || '生成失败，请重试';
       message.error({ content: errorMsg, key: 'ai-generate', duration: 2 });
@@ -319,8 +314,8 @@ const VideoDetailEdit = () => {
     }
   };
 
-  // 新增互动点提交
-  const handleAddQuestion = () => {
+  // 新增互动点提交（调用后端接口）
+  const handleAddQuestion = async () => {
     if (questionType === '选择题' && formData.options.some(opt => !opt)) {
       message.warning('请先输入题目选项');
       return;
@@ -329,57 +324,68 @@ const VideoDetailEdit = () => {
       message.warning('请填写完整的互动点信息');
       return;
     }
-    
-    // 获取第一个分段ID作为默认值
-    const defaultSegmentId = pointList.length > 0 && pointList[0].segment_id 
-      ? pointList[0].segment_id 
-      : (videoData?.segments?.[0]?.id || 0);
-    
-    const newPoint = {
-      id: Date.now(),
-      segment_id: defaultSegmentId, // 确保有 segment_id
-      title: formData.title,
-      type: questionType,
-      time: parseInt(formData.insertTime) || 0,
-      answer: formData.correctAnswer,
-      options: questionType === '选择题' ? formData.options : null,
-      analysis: formData.analysis
-    };
-    setPointList([...pointList, newPoint]);
-    message.success('互动点添加成功');
-    setIsAddModalOpen(false);
-    setFormData({ title: '', insertTime: '', options: ['', '', '', ''], correctAnswer: '', analysis: '' });
+
+    try {
+      const apiData = {
+        video_id: parseInt(videoId),
+        content: formData.title,
+        type: questionType === '选择题' ? 'choice'
+          : questionType === '判断题' ? 'judge'
+          : questionType === '填空题' ? 'fill'
+          : 'subjective',
+        answer: formData.correctAnswer,
+        time_ms: (parseInt(formData.insertTime) || 0) * 1000,
+        analysis: formData.analysis,
+        options: questionType === '选择题' ? formData.options.filter(o => o) : undefined,
+      };
+      await addQuestion(apiData);
+      message.success('互动点添加成功');
+      setIsAddModalOpen(false);
+      setFormData({ title: '', insertTime: '', options: ['', '', '', ''], correctAnswer: '', analysis: '' });
+      // 刷新题目列表
+      const refreshRes = await getVideoDetail(videoId);
+      const rd = refreshRes.data;
+      const segs = rd?.segments || [];
+      let freshQ = segs
+        .filter(s => s.question && Object.keys(s.question).length > 0)
+        .map(s => ({ ...s.question, id: s.question.id, title: s.question.content || s.question.title || '', typeLabel: getQuestionTypeLabel(s.question.type), time: s.start ? s.start / 1000 : 0, segment_id: s.id }));
+      if (freshQ.length === 0) {
+        freshQ = (rd?.questions || []).map(q => ({ ...q, id: q.id, title: q.content || q.title || '', typeLabel: getQuestionTypeLabel(q.type), time: 0, segment_id: q.segment_id || 0 }));
+      }
+      setPointList(freshQ);
+    } catch (error) {
+      message.error(error.message || '添加失败');
+    }
   };
 
-  // 发布到班级
-  const handlePublish = async () => {
-    if (!selectedClassId) {
-      message.warning('请选择要发布的班级');
+  // 发布到班级（review/publish 一步完成：发布 + 创建班级任务）
+  const handlePublishToClass = async () => {
+    if (selectedClassIds.length === 0) {
+      message.warning('请选择班级');
       return;
     }
     if (!isValidVideoId) {
-      message.error('视频ID无效，无法发布');
+      message.error('视频ID无效');
       return;
     }
-    
+
     setPublishing(true);
     try {
-      const publishData = {
+      await publishVideo({
         video_id: parseInt(videoId),
-        class_list: [parseInt(selectedClassId)]  // 修改为 class_list 数组格式
-      };
-      console.log('发布视频到班级，请求数据:', publishData);
-      
-      const res = await postVideoToClass(publishData);
-      console.log('发布响应:', res);
-      
-      message.success('视频发布成功！');
+        class_ids: selectedClassIds.map(id => parseInt(id))
+      });
+
+      // 发布成功后直接更新前端状态，不等待后端轮询
+      setVideoData(prev => ({ ...prev, status: 'published' }));
+
+      message.success(`已发布到 ${selectedClassIds.length} 个班级！`);
       setIsPublishModalOpen(false);
-      // 提示用户去班级详情页查看
+      refreshVideoStatus(); // 后台静默刷新，不阻塞
       Modal.confirm({
         title: '发布成功',
-        content: '视频已成功发布到班级，是否前往班级详情页查看？',
-        onOk: () => navigate(`/class-detail/${selectedClassId}`),
+        content: '是否前往班级详情页查看？',
+        onOk: () => navigate(`/class-detail/${selectedClassIds[0]}`),
         okText: '前往查看',
         cancelText: '稍后查看',
       });
@@ -390,11 +396,50 @@ const VideoDetailEdit = () => {
     }
   };
 
-  // 删除互动点
-  const handleDeletePoint = (pointId) => {
-    setPointList(pointList.filter(p => p.id !== pointId));
-    setEditModalOpen(false);
-    message.success('删除成功');
+  // 追加下发到更多班级（复用 review/publish）
+  const handleAssignMore = async () => {
+    if (selectedClassIds.length === 0) {
+      message.warning('请选择班级');
+      return;
+    }
+    if (!isValidVideoId) {
+      message.error('视频ID无效');
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      await publishVideo({
+        video_id: parseInt(videoId),
+        class_ids: selectedClassIds.map(id => parseInt(id))
+      });
+
+      message.success(`已追加下发到 ${selectedClassIds.length} 个班级！`);
+      setIsPublishModalOpen(false);
+      Modal.confirm({
+        title: '下发成功',
+        content: '是否前往班级详情页查看？',
+        onOk: () => navigate(`/class-detail/${selectedClassIds[0]}`),
+        okText: '前往查看',
+        cancelText: '稍后查看',
+      });
+    } catch (error) {
+      message.error(error.message || '下发失败');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  // 删除互动点（调用后端接口）
+  const handleDeletePoint = async (pointId) => {
+    try {
+      await deleteQuestion(pointId);
+      setPointList(pointList.filter(p => p.id !== pointId));
+      setEditModalOpen(false);
+      message.success('删除成功');
+    } catch (error) {
+      message.error(error.message || '删除失败');
+    }
   };
 
   // 获取状态显示
@@ -406,6 +451,24 @@ const VideoDetailEdit = () => {
       published: { text: '已发布', color: '#52c41a', bg: '#f6ffed' },
     };
     return statusMap[status] || statusMap.pending;
+  };
+
+  // 判断 AI 处理状态
+  const getAIStatus = () => {
+    const hasSegments = videoData?.segments?.length > 0;
+    const hasKnowledge = videoData?.knowledge?.length > 0;
+    const hasQuestions = pointList.length > 0;
+
+    if (!videoData?.url) {
+      return { level: 'none', text: '未上传', tip: '视频文件尚未上传', color: '#d9d9d9' };
+    }
+    if (!hasSegments && !hasKnowledge && !hasQuestions) {
+      return { level: 'processing', text: 'AI 处理中', tip: '视频正在 AI 分析，暂不可用 AI 对话', color: '#faad14' };
+    }
+    if (hasSegments && !hasQuestions) {
+      return { level: 'ready', text: 'AI 已分析', tip: '知识点已提取，可添加互动点后发布', color: '#1890ff' };
+    }
+    return { level: 'complete', text: 'AI 已完成', tip: '视频分析及互动点已就绪，可使用 AI 对话', color: '#52c41a' };
   };
 
   // 格式化时间
@@ -429,26 +492,166 @@ const VideoDetailEdit = () => {
   }
 
   const status = getStatusDisplay();
+  const aiStatus = getAIStatus();
 
   return (
     <MainLayout pageTitle={videoData?.title || '视频编辑'} showBack>
-      {/* 状态标签 + 发布按钮 */}
-      <div style={{ marginBottom: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
-        <Text style={{ color: status.color, background: status.bg, padding: '4px 12px', borderRadius: 4 }}>
+      {/* 状态标签 + 操作按钮 */}
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Tag color={status.color === '#52c41a' ? 'success' : status.color === '#1890ff' ? 'processing' : 'warning'}>
           {status.text}
+        </Tag>
+        <Tag color={aiStatus.level === 'complete' ? 'success' : aiStatus.level === 'processing' ? 'warning' : aiStatus.level === 'ready' ? 'processing' : 'default'}>
+          {aiStatus.text}
+        </Tag>
+        <Text style={{ color: '#999', fontSize: 12 }}>{aiStatus.tip}</Text>
+        <Text style={{ color: '#666', fontSize: 12, marginLeft: 8 }}>
+          互动点: {pointList.length} | 知识点: {videoData?.knowledge?.length || 0} | 分段: {videoData?.segments?.length || 0}
         </Text>
-        <Text style={{ color: '#666', fontSize: 12 }}>
-          互动点数量: {pointList.length}
-        </Text>
-        <Button
-          type="primary"
-          icon={<UploadOutlined />}
-          style={{ marginLeft: 'auto', background: '#722ed1', borderColor: '#722ed1' }}
-          onClick={handleOpenPublish}
-        >
-          发布到班级
-        </Button>
+        {aiStatus.level === 'processing' && (
+          <Button size="small" onClick={fetchVideoDetail} loading={loading}>
+            刷新状态
+          </Button>
+        )}
+        <div style={{ marginLeft: 'auto' }}>
+          {(videoData?.status === 'pending' || videoData?.status === 'reviewing' || !videoData?.status) && (
+            <Button
+              type="primary"
+              icon={<UploadOutlined />}
+              style={{ background: '#722ed1', borderColor: '#722ed1' }}
+              onClick={handleOpenAssignClass}
+            >
+              发布到班级
+            </Button>
+          )}
+          {videoData?.status === 'published' && (
+            <Button
+              type="primary"
+              icon={<UploadOutlined />}
+              style={{ background: '#fa8c16', borderColor: '#fa8c16' }}
+              onClick={handleOpenAssignClass}
+            >
+              追加下发
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* AI 处理状态提示 */}
+      {aiStatus.level === 'processing' && (
+        <Alert
+          title="视频正在 AI 分析中"
+          description="AI 正在对视频进行分段、提取知识点。处理完成前无法使用 AI 对话和生成互动点。点击右上角「刷新状态」按钮手动检查。"
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+      {aiStatus.level === 'ready' && (
+        <Alert
+          title="AI 分析已完成，可添加互动点"
+          description="知识点已提取，建议点击「AI 生成互动点」自动生成题目，或手动添加互动点后发布。"
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      {/* 视频知识图谱 */}
+      {videoData?.subgraph && (() => {
+        try {
+          const sg = typeof videoData.subgraph === 'string'
+            ? JSON.parse(videoData.subgraph)
+            : videoData.subgraph;
+          const gn = sg.nodes || sg.entities || [];
+          const ge = sg.edges || sg.relations || [];
+
+          // 节点类型颜色
+          const typeColors = ['#722ed1', '#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#13c2c2', '#faad14', '#2f54eb', '#a0d911', '#f5222d'];
+          const categories = [...new Set(gn.map(n => n.type || n.category || '知识点'))].map((t, i) => ({
+            name: t, itemStyle: { color: typeColors[i % typeColors.length] },
+          }));
+
+          const option = {
+            tooltip: {
+              formatter: (p) => {
+                if (p.dataType === 'node') {
+                  const n = gn.find(x => (x.id || x.label) === p.name);
+                  return `<b>${p.name}</b><br/>类型: ${n?.type || n?.category || '知识点'}<br/>${n?.description || n?.desc || ''}`;
+                }
+                return `${p.data.source} → ${p.data.target}`;
+              },
+              backgroundColor: 'rgba(255,255,255,0.95)',
+              borderColor: '#e8e8e8',
+              textStyle: { color: '#333' },
+              extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px;',
+            },
+            legend: gn.length < 30 ? { bottom: 0, data: categories.map(c => c.name) } : undefined,
+            series: [{
+              type: 'graph',
+              layout: 'force',
+              roam: true,
+              draggable: true,
+              categories,
+              nodes: gn.map((n, i) => ({
+                id: n.id || n.label,
+                name: n.label || n.name,
+                category: n.type || n.category || '知识点',
+                symbolSize: n.type === 'core' || n.type === 'Topic' ? 28 : n.type === 'Module' ? 22 : 18,
+                label: { show: true, fontSize: 10, color: '#444', position: 'right', distance: 4 },
+                itemStyle: {
+                  borderWidth: 2,
+                  borderColor: '#fff',
+                  shadowBlur: 6,
+                  shadowColor: 'rgba(0,0,0,0.08)',
+                },
+              })),
+              edges: ge.map(e => ({
+                source: e.from || e.source,
+                target: e.to || e.target,
+                label: e.relation ? { show: true, fontSize: 9, formatter: e.relation } : undefined,
+                lineStyle: {
+                  color: e.relation === 'prerequisite' || e.relation === 'strong_prerequisite' ? '#ff4d4f'
+                    : e.relation === 'weak_prerequisite' ? '#faad14'
+                    : '#c0c0c0',
+                  width: e.relation === 'prerequisite' || e.relation === 'strong_prerequisite' ? 2 : 1,
+                  curveness: 0.2,
+                  opacity: 0.6,
+                },
+              })),
+              force: { repulsion: 400, gravity: 0.08, edgeLength: [100, 280], friction: 0.6 },
+              emphasis: {
+                focus: 'adjacency',
+                lineStyle: { width: 3, opacity: 1 },
+                itemStyle: { shadowBlur: 20, shadowColor: 'rgba(114,46,209,0.4)' },
+                label: { fontSize: 14, fontWeight: 'bold' },
+              },
+              scaleLimit: { min: 0.4, max: 4 },
+            }],
+          };
+
+          return (
+            <Card
+              title={
+                <Space>
+                  <NodeIndexOutlined style={{ color: '#722ed1', fontSize: 16 }} />
+                  <span>视频知识图谱</span>
+                  <Tag color="purple" style={{ marginLeft: 8 }}>{gn.length} 节点</Tag>
+                  <Tag color="blue">{ge.length} 关系</Tag>
+                </Space>
+              }
+              style={{ marginBottom: 24, borderRadius: 12, border: '1px solid #f0f0f0' }}
+              styles={{ body: { padding: 0 } }}
+            >
+              <div style={{ height: 400, background: 'linear-gradient(135deg, #f5f3ff 0%, #e8f4f8 100%)', borderRadius: '0 0 12px 12px' }}>
+                <ReactECharts option={option} style={{ height: 400 }} notMerge />
+              </div>
+            </Card>
+          );
+        } catch {
+          return null;
+        }
+      })()}
 
       {/* 视频播放器 + 进度条互动点 */}
       <div style={{
@@ -505,15 +708,9 @@ const VideoDetailEdit = () => {
             
             {/* 互动点标记 */}
             {pointList.map((point, idx) => {
-              const title = point.title ?? point.question_title ?? point.questionTitle ?? '互动点';
-              // 优先使用 typeLabel，否则根据 type 映射
+              const title = point.title ?? point.question_title ?? point.questionTitle ?? point.content ?? '互动点';
               const type = point.typeLabel || getQuestionTypeLabel(point.type ?? point.question_type ?? point.questionType);
-              // 时间处理：如果时间超过10000，可能是毫秒格式，转换为秒
-              let rawTime = point.time ?? point.insert_time ?? point.insertTime ?? 0;
-              if (rawTime > 10000) {
-                rawTime = rawTime / 1000; // 毫秒转秒
-              }
-              const timeValue = parseFloat(rawTime) || 0;
+              const timeValue = parseFloat(point.time ?? point.insert_time ?? point.insertTime ?? 0) || 0;
               const percent = duration > 0 && timeValue > 0 ? (timeValue / duration) * 100 : 0;
               return (
                 <div
@@ -558,9 +755,17 @@ const VideoDetailEdit = () => {
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsAddModalOpen(true)}>
           添加互动点
         </Button>
-        <Button icon={<RobotOutlined />} onClick={handleAIGenerate} loading={isGenerating}>
-          AI一键生成互动点
-        </Button>
+        <Space.Compact>
+          <Select
+            value={quizCount}
+            onChange={setQuizCount}
+            style={{ width: 70 }}
+            options={[3, 5, 8, 10].map((n) => ({ value: n, label: `${n}题` }))}
+          />
+          <Button icon={<RobotOutlined />} onClick={handleAIGenerate} loading={isGenerating}>
+            AI生成互动点
+          </Button>
+        </Space.Compact>
         <Button onClick={() => setDrawerOpen(true)}>
           查看互动点 ({pointList.length})
         </Button>
@@ -704,18 +909,19 @@ const VideoDetailEdit = () => {
 
       {/* 发布到班级弹窗 */}
       <Modal
-        title="发布视频到班级"
+        title={videoData?.status === 'published' ? '追加下发到班级' : '发布视频到班级'}
         open={isPublishModalOpen}
         onCancel={() => setIsPublishModalOpen(false)}
         footer={null}
       >
         <div style={{ marginBottom: 16 }}>
-          <Text strong>选择班级：</Text>
+          <Text strong>选择班级（可多选）：</Text>
           <Select
+            mode="multiple"
             placeholder="请选择要发布的班级"
             style={{ width: '100%', marginTop: 8 }}
-            value={selectedClassId || undefined}
-            onChange={setSelectedClassId}
+            value={selectedClassIds}
+            onChange={setSelectedClassIds}
           >
             {classList.map(cls => (
               <Option key={cls.class_id} value={cls.class_id}>{cls.class_name}</Option>
@@ -735,9 +941,16 @@ const VideoDetailEdit = () => {
 
         <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <Button onClick={() => setIsPublishModalOpen(false)}>取消</Button>
-          <Button 
-            type="primary" 
-            onClick={handlePublish} 
+          <Button
+            type="primary"
+            onClick={() => {
+              const status = videoData?.status || 'pending';
+              if (status === 'published') {
+                handleAssignMore();
+              } else {
+                handlePublishToClass();
+              }
+            }}
             loading={publishing}
             style={{ background: '#722ed1', borderColor: '#722ed1' }}
           >
@@ -769,14 +982,10 @@ const VideoDetailEdit = () => {
         ) : (
           <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', padding: '0 4px' }}>
             {pointList.map((item, index) => {
-              const title = item.title ?? item.question_title ?? item.questionTitle ?? '无标题';
+              const title = item.title ?? item.content ?? item.question_title ?? item.questionTitle ?? '无标题';
               // 优先使用 typeLabel，否则调用映射函数
               const type = item.typeLabel || getQuestionTypeLabel(item.type ?? item.question_type ?? item.questionType ?? '');
-              // 时间处理：如果时间超过10000，可能是毫秒格式，转换为秒
-              let timeValue = item.time ?? item.insert_time ?? item.insertTime ?? 0;
-              if (timeValue > 10000) {
-                timeValue = timeValue / 1000; // 毫秒转秒
-              }
+              const timeValue = item.time ?? item.insert_time ?? item.insertTime ?? 0;
               const id = item.id ?? item.question_id ?? index;
               const answer = item.answer ?? item.correctAnswer ?? item.right_answer ?? '';
               const analysis = item.analysis ?? item.explanation ?? '';
@@ -1195,31 +1404,42 @@ const VideoDetailEdit = () => {
             setEditModalOpen(false);
             setFormData({ title: '', insertTime: '', options: ['', '', '', ''], correctAnswer: '', analysis: '' });
           }}>取消</Button>
-          <Button type="primary" onClick={() => {
+          <Button type="primary" onClick={async () => {
             if (!formData.title || !formData.insertTime || !formData.correctAnswer) {
               message.warning('请填写完整的互动点信息');
               return;
             }
-            // 更新互动点
-            const updatedPoints = pointList.map(p => {
+            try {
               const pointId = currentPoint?.id || currentPoint?.question_id;
-              if (p.id === pointId || p.question_id === pointId) {
-                return {
-                  ...p,
-                  title: formData.title,
-                  type: questionType,
-                  time: parseInt(formData.insertTime) || 0,
-                  answer: formData.correctAnswer,
-                  options: questionType === '选择题' ? formData.options : null,
-                  analysis: formData.analysis
-                };
-              }
-              return p;
-            });
-            setPointList(updatedPoints);
-            setEditModalOpen(false);
-            setFormData({ title: '', insertTime: '', options: ['', '', '', ''], correctAnswer: '', analysis: '' });
-            message.success('互动点已更新');
+              const apiData = {
+                questionID: pointId,
+                content: formData.title,
+                type: questionType === '选择题' ? 'choice'
+                  : questionType === '判断题' ? 'judge'
+                  : questionType === '填空题' ? 'fill'
+                  : 'subjective',
+                answer: formData.correctAnswer,
+                analysis: formData.analysis,
+                options: questionType === '选择题' ? formData.options.filter(o => o) : undefined,
+              };
+              await updateQuestion(pointId, apiData);
+              // 刷新题目列表
+              const reviewRes = await getReviewQuestions(videoId);
+              const freshQuestions = (reviewRes.data?.questions || []).map(q => ({
+                ...q,
+                id: q.id,
+                title: q.content || q.title || '',
+                typeLabel: getQuestionTypeLabel(q.type),
+                time: 0,
+                segment_id: q.segment_id || 0,
+              }));
+              setPointList(freshQuestions);
+              setEditModalOpen(false);
+              setFormData({ title: '', insertTime: '', options: ['', '', '', ''], correctAnswer: '', analysis: '' });
+              message.success('互动点已更新');
+            } catch (error) {
+              message.error(error.message || '更新失败');
+            }
           }} style={{ background: '#722ed1', borderColor: '#722ed1' }}>
             保存
           </Button>

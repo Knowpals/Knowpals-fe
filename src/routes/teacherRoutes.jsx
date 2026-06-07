@@ -12,6 +12,7 @@ import VideoManagement from '../pages/teacher/VideoManagement';
 import VideoDetailEdit from '../pages/teacher/VideoDetailEdit';
 import ClassVideoDetail from '../pages/teacher/ClassVideoDetail';
 import StudentData from '../pages/teacher/StudentData';
+import AIChat from '../pages/teacher/AIChat';
 
 const teacherRoutes = [
   { path: '/home', element: <Home /> },
@@ -26,6 +27,7 @@ const teacherRoutes = [
   { path: '/student-data/:studentId', element: <StudentData /> },
   { path: '/video-management', element: <VideoManagement /> },
   { path: '/video-detail-edit/:videoId', element: <VideoDetailEdit /> },
+  { path: '/ai-chat', element: <AIChat /> },
 ];
 
 const TeacherRoutes = () =>

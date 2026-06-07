@@ -9,7 +9,8 @@ import {
   UserOutlined,
   ArrowLeftOutlined,
   LogoutOutlined,
-  DownOutlined
+  DownOutlined,
+  RobotOutlined
 } from '@ant-design/icons';
 
 const { Sider, Header, Content } = Layout;
@@ -19,6 +20,7 @@ const menuItems = [
   { key: '/video-management', label: '视频管理', icon: <VideoCameraOutlined /> },
   { key: '/class-management', label: '班级管理', icon: <TeamOutlined /> },
   { key: '/data-analysis', label: '数据分析', icon: <BarChartOutlined /> },
+  { key: '/ai-chat', label: 'AI助手', icon: <RobotOutlined /> },
   { key: '/my', label: '我的', icon: <UserOutlined /> },
 ];
 

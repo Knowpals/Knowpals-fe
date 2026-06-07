@@ -4,6 +4,7 @@ import { PlusOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import MainLayout from '../../layouts/TeacherLayout';
 import { getClassInfo, getClassStudents, getVideoTasks, joinClass } from '../../services/teacherApi';
+import KnowledgeGraph from '../../components/KnowledgeGraph';
 
 const ClassDetail = () => {
   const navigate = useNavigate();
@@ -37,7 +38,24 @@ const ClassDetail = () => {
         getVideoTasks(classId),
       ]);
       setClassInfo(infoRes.data?.class_info || {});
-      setStudents(studentsRes.data?.students || []);
+      let studentList = studentsRes.data?.students || [];
+
+      // 数值分析班级：注入 demo 学生用于数据展示
+      if ((infoRes.data?.class_info?.class_name || '').includes('数值分析')) {
+        const hasDemo = studentList.some(s => s.id === 'demo-1');
+        if (!hasDemo) {
+          studentList = [
+            {
+              id: 'demo-1',
+              username: '张同学(示例)',
+              email: 'zhang@example.com',
+            },
+            ...studentList,
+          ];
+        }
+      }
+
+      setStudents(studentList);
       // 兼容：后端可能返回数组或单个对象
       const videoData = videosRes.data;
       console.log('班级视频数据:', videoData);
@@ -84,6 +102,10 @@ const ClassDetail = () => {
 
   // 删除学生（模拟）
   const handleDeleteStudent = (studentId) => {
+    if (studentId === 'demo-1') {
+      message.info('Demo 学生不可删除');
+      return;
+    }
     setStudents(students.filter(s => s.id !== studentId));
     message.success('删除学生成功');
   };
@@ -203,6 +225,11 @@ const ClassDetail = () => {
             })}
           </div>
         )}
+      </div>
+
+      {/* 课程知识图谱 */}
+      <div style={{ marginTop: 32, marginBottom: 32 }}>
+        <KnowledgeGraph />
       </div>
 
       {/* 添加学生弹窗 */}

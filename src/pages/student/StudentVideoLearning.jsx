@@ -515,7 +515,7 @@ const StudentVideoLearning = () => {
     setCurrentQuestionIndex(index);
     setCurrentQuestion({
       id: qData.id || node.id,
-      title: qData.title || '题目内容',
+      title: qData.title || qData.content || '题目内容',
       options: qData.options || [],
       answerIndex: qData.answerIndex || 0,
       analysis: qData.analysis || '',

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Form, Select, Card, Row, Col, Progress, Table, Tag,
+  Form, Select, Card, Row, Col, Progress, Table,
   Button, Spin
 } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import { ArrowUpOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '../../layouts/TeacherLayout';
 import ReactECharts from 'echarts-for-react';
@@ -76,6 +76,9 @@ const DataAnalysis = () => {
     setLoading(true);
     try {
       const res = await getClassStat({ class_id: classId, video_id: videoId });
+      console.log('班级统计原始响应:', res);
+      console.log('班级统计 data 字段:', res.data);
+      console.log('data 的所有 key:', res.data ? Object.keys(res.data) : 'null');
       setStatData(res.data);
     } catch (error) {
       console.error('获取统计数据失败:', error);
@@ -92,7 +95,7 @@ const DataAnalysis = () => {
     yAxis: { type: 'value', show: false },
     series: [{
       type: 'bar',
-      data: statData?.top_pause_action?.map(p => p.pause_count) || [120, 190, 130, 250, 150, 180, 220, 160, 140, 170, 200, 137],
+      data: (statData?.top_pause_action?.length ? statData.top_pause_action.map(p => p.pause_count) : []),
       itemStyle: { color: '#85a5ff' },
       barWidth: '60%',
     }]
@@ -156,6 +159,7 @@ const DataAnalysis = () => {
           placeholder="选择视频"
           value={selectedVideo}
           onChange={(value) => setSelectedVideo(value)}
+          notFoundContent={videos.length === 0 ? '该班级暂无视频任务' : undefined}
         >
           {videos.map((video) => (
             <Option key={video.video_id} value={video.video_id}>
@@ -165,13 +169,13 @@ const DataAnalysis = () => {
         </Select>
       </div>
 
-      {/* 顶部统计卡片 */}
+      {/* 班级统计卡片 */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={6}>
           <Card style={{ borderRadius: 8, height: '100%' }} styles={{ body: { padding: 16 } }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>
-                {overview.average_correct_rate ? `${(overview.average_correct_rate * 100).toFixed(1)}%` : '0%'}
+                {overview.average_correct_rate != null ? `${(overview.average_correct_rate * 100).toFixed(1)}%` : '0.0%'}
               </div>
               <div style={{ fontSize: 12, color: '#52c41a' }}>
                 <ArrowUpOutlined /> 较上周 +2.1%
@@ -184,7 +188,7 @@ const DataAnalysis = () => {
           <Card style={{ borderRadius: 8, height: '100%' }} styles={{ body: { padding: 16 } }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 20, fontWeight: 600, color: '#1f2937', marginBottom: 8 }}>
-                {overview.average_time_cost ? `${Math.floor(overview.average_time_cost / 60)}分${overview.average_time_cost % 60}秒` : '0分0秒'}
+                {overview.average_time_cost != null ? `${Math.floor(overview.average_time_cost / 60)}分${overview.average_time_cost % 60}秒` : '0分0秒'}
               </div>
               <div style={{ fontSize: 12, color: '#52c41a' }}>
                 快于年级平均 0.5 分钟
@@ -197,9 +201,9 @@ const DataAnalysis = () => {
           <Card style={{ borderRadius: 8, height: '100%' }} styles={{ body: { padding: 16 } }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: '#1f2937', marginBottom: 8 }}>
-                {overview.complete_rate ? `${(overview.complete_rate * 100).toFixed(1)}%` : '0%'}
+                {overview.complete_rate != null ? `${(overview.complete_rate * 100).toFixed(1)}%` : '0.0%'}
               </div>
-              <Progress percent={overview.complete_rate ? overview.complete_rate * 100 : 0} size="small" status="success" />
+              <Progress percent={overview.complete_rate != null ? overview.complete_rate * 100 : 0} size="small" status="success" />
             </div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>课程完成率</div>
           </Card>
@@ -208,7 +212,7 @@ const DataAnalysis = () => {
           <Card style={{ borderRadius: 8, height: '100%' }} styles={{ body: { padding: 16 } }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: '#1f2937', marginBottom: 8 }}>
-                {overview.total_pause_count?.toLocaleString() || 0}次
+                {overview.total_pause_count != null ? overview.total_pause_count.toLocaleString() : 0}次
               </div>
               <ReactECharts option={pauseChartOption} style={{ height: 40 }} />
             </div>
@@ -229,10 +233,10 @@ const DataAnalysis = () => {
                   <div style={{ fontSize: 14, color: '#666', width: 120 }}>{point.title}</div>
                   <div style={{ width: 200 }}>
                     <Progress
-                      percent={point.weak_rate ? point.weak_rate * 100 : 0}
+                      percent={point.weak_rate != null ? point.weak_rate * 100 : 0}
                       size="small"
-                      strokeColor={point.weak_rate > 0.35 ? '#f5222d' : '#fa8c16'}
-                      status={point.weak_rate > 0.35 ? 'exception' : 'active'}
+                      strokeColor={(point.weak_rate ?? 0) > 0.35 ? '#f5222d' : '#fa8c16'}
+                      status={(point.weak_rate ?? 0) > 0.35 ? 'exception' : 'active'}
                     />
                   </div>
                 </div>
@@ -254,13 +258,21 @@ const DataAnalysis = () => {
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={12}>
           <Card title="高频暂停时刻" style={{ borderRadius: 8 }}>
-            <Form layout="inline" style={{ marginBottom: 16 }} initialValues={{ pauseVideo: 'video1' }}>
-              <Form.Item name="pauseVideo">
-                <Select style={{ width: 180 }} onChange={(v) => setSelectedVideo(v)}>
-                  <Option value="video1">二次函数的概念引入</Option>
-                </Select>
-              </Form.Item>
-            </Form>
+            <div style={{ marginBottom: 16 }}>
+              <Select
+                style={{ width: 250 }}
+                placeholder="选择视频"
+                value={selectedVideo}
+                onChange={(v) => setSelectedVideo(v)}
+                notFoundContent="暂无视频"
+              >
+                {videos.map((v) => (
+                  <Option key={v.video_id} value={v.video_id}>
+                    {v.video_title || v.title || `视频 ${v.video_id}`}
+                  </Option>
+                ))}
+              </Select>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {topPause.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>暂无数据</div>
@@ -281,13 +293,21 @@ const DataAnalysis = () => {
         </Col>
         <Col span={12}>
           <Card title="高频回看时刻" style={{ borderRadius: 8 }}>
-            <Form layout="inline" style={{ marginBottom: 16 }} initialValues={{ reviewVideo: 'video1' }}>
-              <Form.Item name="reviewVideo">
-                <Select style={{ width: 180 }} onChange={(v) => setSelectedVideo(v)}>
-                  <Option value="video1">二次函数的概念引入</Option>
-                </Select>
-              </Form.Item>
-            </Form>
+            <div style={{ marginBottom: 16 }}>
+              <Select
+                style={{ width: 250 }}
+                placeholder="选择视频"
+                value={selectedVideo}
+                onChange={(v) => setSelectedVideo(v)}
+                notFoundContent="暂无视频"
+              >
+                {videos.map((v) => (
+                  <Option key={v.video_id} value={v.video_id}>
+                    {v.video_title || v.title || `视频 ${v.video_id}`}
+                  </Option>
+                ))}
+              </Select>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {topReplay.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>暂无数据</div>

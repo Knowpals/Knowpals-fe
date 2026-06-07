@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Button, Modal, Card, message, Space, Spin, Input } from 'antd';
-import { PlusOutlined, CopyOutlined, SyncOutlined } from '@ant-design/icons';
+import { PlusOutlined, CopyOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '../../layouts/TeacherLayout';
 import { createClass, getMyCreatedClasses } from '../../services/teacherApi';
@@ -12,8 +12,6 @@ const ClassManagement = () => {
   const [loading, setLoading] = useState(false);
   const [classList, setClassList] = useState([]);
   const [fetchLoading, setFetchLoading] = useState(true);
-  const [inviteCode, setInviteCode] = useState('');
-
   useEffect(() => {
     fetchClassList();
   }, []);
@@ -36,31 +34,22 @@ const ClassManagement = () => {
     message.success('邀请码已复制');
   };
 
-  // 生成邀请码（8位数字）
-  const generateInviteCode = () => {
-    let code = '';
-    for (let i = 0; i < 8; i++) {
-      code += Math.floor(Math.random() * 10);
-    }
-    setInviteCode(code);
-  };
-
-  // 创建班级
+  // 创建班级（邀请码由服务端自动生成）
   const handleCreateClass = async (values) => {
-    if (!inviteCode) {
-      message.error('请先生成班级邀请码');
-      return;
-    }
     setLoading(true);
     try {
-      await createClass({ 
-        class_name: values.class_name,
-        invite_code: inviteCode 
-      });
+      const res = await createClass({ class_name: values.class_name });
       message.success('班级创建成功！');
       setIsModalOpen(false);
       form.resetFields();
-      setInviteCode('');
+      // 显示服务端返回的邀请码
+      if (res.data?.invite_code) {
+        Modal.info({
+          title: '班级已创建',
+          content: `班级邀请码：${res.data.invite_code}（分享给学生即可加入）`,
+          okText: '知道了',
+        });
+      }
       fetchClassList();
     } catch (error) {
       message.error(error.message || '创建失败');
@@ -161,7 +150,6 @@ const ClassManagement = () => {
         onCancel={() => {
           setIsModalOpen(false);
           form.resetFields();
-          setInviteCode('');
         }}
         footer={null}
         centered
@@ -179,32 +167,9 @@ const ClassManagement = () => {
             <Input placeholder="请输入班级名称" />
           </Form.Item>
 
-          <Form.Item label="班级邀请码">
-            <Space.Compact style={{ width: '100%' }}>
-              <Input
-                value={inviteCode}
-                placeholder="点击按钮生成邀请码"
-                readOnly
-                style={{ 
-                  background: inviteCode ? '#f5f5f5' : '#fff',
-                  fontWeight: inviteCode ? 600 : 400,
-                  letterSpacing: inviteCode ? 2 : 0
-                }}
-              />
-              <Button 
-                icon={<SyncOutlined spin={loading} />} 
-                onClick={generateInviteCode}
-                disabled={loading}
-              >
-                生成
-              </Button>
-            </Space.Compact>
-            {inviteCode && (
-              <div style={{ marginTop: 8, color: '#52c41a', fontSize: 12 }}>
-                邀请码已生成，创建班级后将自动生效
-              </div>
-            )}
-          </Form.Item>
+          <div style={{ marginBottom: 16, fontSize: 12, color: '#999' }}>
+            创建后系统将自动生成班级邀请码，分享给学生即可加入
+          </div>
 
           <Form.Item style={{ textAlign: 'right', marginBottom: 0, marginTop: 24 }}>
             <Space>

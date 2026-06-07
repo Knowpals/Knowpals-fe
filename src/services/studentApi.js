@@ -25,8 +25,8 @@ export const getVideoTasks = (classId) => request.get(`/video/getTasks/${classId
 export const getClassProgress = (classId, status) =>
   request.get(`/behavior/class-progress/${classId}/${status}`);
 
-// 提交答题记录
-export const submitAnswer = (data) => request.post('/behavior/answer', data);
+// 提交答题记录（新版路径）
+export const submitAnswer = (data) => request.post('/question/answer', data);
 
 // ==================== 统计分析相关 ====================
 
