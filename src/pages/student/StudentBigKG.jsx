@@ -2,11 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spin, Card } from 'antd';
 import KnowledgeGraphNetwork from '../../components/KnowledgeGraphNetwork';
-import BackArrow from '../../components/BackArrow';
 import AIFloatButton from '../../components/AIFloatButton';
 import { getBigKG } from '../../services/studentApi';
 import { injectStyles } from '../../utils/injectStyles';
-import '../../utils/sharedPageStyles';
 
 injectStyles('student-big-kg', `
   .big-kg-page-v2 { min-height: 100vh; background: #f5f7fa; }
@@ -15,6 +13,7 @@ injectStyles('student-big-kg', `
     padding: 16px 15px; color: #fff;
   }
   .big-kg-header-content-v2 { display: flex; align-items: center; gap: 12px; }
+  .big-kg-back-btn-v2 { font-size: 22px; color: #fff; cursor: pointer; width: 30px; text-align: center; }
   .big-kg-title-section-v2 { display: flex; flex-direction: column; flex: 1; min-width: 0; }
   .big-kg-title-v2 { font-size: 18px; font-weight: 600; }
   .big-kg-subtitle-v2 { font-size: 12px; opacity: 0.85; }
@@ -81,7 +80,7 @@ export default function StudentBigKG() {
     <div className="big-kg-page-v2">
       <div className="big-kg-header-v2">
         <div className="big-kg-header-content-v2">
-          <BackArrow onClick={() => navigate(-1)} />
+          <div className="big-kg-back-btn-v2" onClick={() => navigate(-1)}>←</div>
           <div className="big-kg-title-section-v2">
             <span className="big-kg-title-v2">{decodeURIComponent(pageTitle)}</span>
             <span className="big-kg-subtitle-v2">AI 审计版 · 网状知识图谱</span>

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Spin, Card, Segmented, Empty } from 'antd';
+import { Spin, Card, Segmented, Empty, Tag, Space } from 'antd';
 import {
   CheckCircleFilled,
   CloseCircleFilled,
   MinusCircleFilled,
   ApartmentOutlined,
   PartitionOutlined,
+  NodeIndexOutlined,
 } from '@ant-design/icons';
 import SmallKGNetwork, { masteryColor, normalizeGraph } from '../../components/SmallKGNetwork';
 import GraphNode from '../../components/GraphNode';
@@ -101,16 +102,26 @@ const demoTreeData = {
   ],
 };
 
-// 将 subgraph 数据解析为 {nodes, edges} 或树形
+// 将 subgraph 数据解析为 {nodes, edges} 或树形（对齐教师端字段）
 function parseSubgraph(raw) {
   if (!raw) return null;
-  // 如果是字符串，先 JSON.parse
   let data = raw;
   if (typeof raw === 'string') {
     try { data = JSON.parse(raw); } catch (e) { return null; }
   }
-  // 有 nodes/edges → 图数据
-  if (data?.nodes || data?.edges) return data;
+  // 解包常见嵌套格式：{ graph: {...} }, { data: {...} }, { subgraph: {...} }
+  if (data && !data.nodes && !data.entities && !data.children && !data.name && !data.title && !data.label) {
+    if (data.graph) data = data.graph;
+    else if (data.data) data = data.data;
+    else if (data.subgraph) data = data.subgraph;
+  }
+  // 兼容 nodes/entities + edges/relations/links（对齐教师端 entities/relations）
+  const nodeList = data?.nodes || data?.entities;
+  const edgeList = data?.edges || data?.relations || data?.links;
+  if (nodeList || edgeList) {
+    // 标准化为 nodes + edges
+    return { nodes: nodeList || [], edges: edgeList || [] };
+  }
   // 有 children → 树形
   if (data?.children || data?.name || data?.title || data?.label) return data;
   return null;
@@ -142,14 +153,14 @@ export default function StudentSmallKG() {
         if ((res.code === 0 || res.code === 200) && res.data) {
           const { subgraph, knowledge, title } = res.data;
 
-          // 尝试解析 subgraph
+          // 尝试解析 subgraph（兼容 nodes/entities + edges/relations）
           const parsed = parseSubgraph(subgraph);
           if (parsed) {
-            // 有 nodes/edges → 网状
-            if (parsed.nodes || parsed.edges) {
+            // 有 nodes/entities → 网状图数据
+            if (parsed.nodes && parsed.nodes.length > 0) {
               setGraphData(parsed);
-              const { nodes, links } = normalizeGraph(parsed);
-              setStats({ nodes: nodes.length, edges: links.length });
+              const { nodes: ns, links: ls } = normalizeGraph(parsed);
+              setStats({ nodes: ns.length, edges: ls.length });
               // 也尝试构建树形作为备选
               if (parsed.children || parsed.name || parsed.label) {
                 setTreeData(parsed);
@@ -158,18 +169,23 @@ export default function StudentSmallKG() {
             } else if (parsed.children) {
               // 仅树形
               setTreeData(parsed);
-              setGraphData(null);
+              setGraphData(parsed);
+              const { nodes: ns, links: ls } = normalizeGraph(parsed);
+              setStats({ nodes: ns.length, edges: ls.length });
               setViewMode('tree');
             }
             setLoading(false);
             return;
           }
 
-          // subgraph 不可用 → 用 knowledge 数组构建
+          // subgraph 不可用 → 用 knowledge 数组构建树形
           if (knowledge && Array.isArray(knowledge) && knowledge.length > 0) {
-            setTreeData({ name: title || pageTitle, children: knowledge });
-            setGraphData({ nodes: knowledge, edges: [] });
-            setViewMode('network');
+            const tree = { name: title || pageTitle, children: knowledge };
+            setTreeData(tree);
+            setGraphData(tree);  // normalizeGraph 会处理树形
+            const { nodes: ns, links: ls } = normalizeGraph(tree);
+            setStats({ nodes: ns.length, edges: ls.length });
+            setViewMode('tree');
             setLoading(false);
             return;
           }
@@ -182,13 +198,17 @@ export default function StudentSmallKG() {
       const res = await getSmallKG({ video_id: videoId, class_id: classId });
       if ((res.code === 0 || res.code === 200) && res.data) {
         const kg = res.data.tree || res.data;
-        if (kg.nodes || kg.edges) {
+        // 兼容 nodes/entities
+        if (kg.nodes || kg.entities || kg.edges || kg.relations || kg.links) {
           setGraphData(kg);
-          const { nodes, links } = normalizeGraph(kg);
-          setStats({ nodes: nodes.length, edges: links.length });
+          const { nodes: ns, links: ls } = normalizeGraph(kg);
+          setStats({ nodes: ns.length, edges: ls.length });
           setViewMode('network');
         } else {
           setTreeData(kg);
+          setGraphData(kg);
+          const { nodes: ns, links: ls } = normalizeGraph(kg);
+          setStats({ nodes: ns.length, edges: ls.length });
           setViewMode('tree');
         }
         setLoading(false);
@@ -273,9 +293,21 @@ export default function StudentSmallKG() {
               </div>
             )}
 
-            {/* 网络视图 */}
+            {/* 网络视图（对齐教师端 Card 包装） */}
             {viewMode === 'network' && graphData && (
-              <Card className="small-kg-card-v2">
+              <Card
+                title={
+                  <Space>
+                    <NodeIndexOutlined style={{ color: '#722ed1', fontSize: 16 }} />
+                    <span>视频知识图谱</span>
+                    <Tag color="purple" style={{ marginLeft: 8 }}>{stats.nodes} 节点</Tag>
+                    <Tag color="blue">{stats.edges} 关系</Tag>
+                  </Space>
+                }
+                className="small-kg-card-v2"
+                style={{ marginBottom: 24, borderRadius: 12, border: '1px solid #f0f0f0' }}
+                styles={{ body: { padding: 0 } }}
+              >
                 <SmallKGNetwork
                   data={graphData}
                   onNodeClick={handleNodeClick}
