@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Read(//c/Users/25946/WeChatProjects/my-zhiban-project/zhiban-unified/**)",
-      "Read(//c/Users/25946/WeChatProjects/my-zhiban-project/Knowpals-fe-h5/**)"
+      "Read(//c/Users/25946/WeChatProjects/my-zhiban-project/Knowpals-fe-h5/**)",
+      "Bash(cd \"C:\\\\Users\\\\25946\\\\Downloads\\\\Team_Handoff_V1_20260601\\\\01_图谱主文件\" && head -2 knowledge_nodes.csv && echo \"---\" && head -2 knowledge_edges_v1_candidate_ai_audited.csv && echo \"---\" && wc -l *.csv 2>&1)",
+      "Read(//c/Users/25946/Downloads/Team_Handoff_V1_20260601/01_图谱主文件/**)",
+      "Bash(start http://localhost:5176/student/big-kg)",
+      "Bash(start http://localhost:5177/student/big-kg)"
     ]
   }
 }

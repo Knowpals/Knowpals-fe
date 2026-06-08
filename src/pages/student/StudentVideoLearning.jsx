@@ -1,209 +1,294 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { message } from 'antd';
+import { message, Checkbox } from 'antd';
 import request from '../../utils/request';
 import { injectStyles } from '../../utils/injectStyles';
+import {
+  QUESTION_TYPE, QUESTION_TYPE_META, OPTION_LETTERS,
+  normalizeQuestionType, formatOptions, isAnswerCorrect, buildAnswerPayload,
+  normalizeQuestionData,
+} from '../../constants/questionTypes';
 
 injectStyles('student-video', `
-  .video-play-container {
-    max-width: 480px; margin: 0 auto; min-height: 100vh;
-    background: #fff; position: relative;
+  /* ========== 容器 ========== */
+  .video-play-container-v2 {
+    width: 100%; min-height: 100vh; background: #0f0f0f;
+    display: flex; flex-direction: column;
   }
-  @media (min-width: 481px) { .video-play-container { max-width: 100%; } }
-  .video-nav-bar {
-    display: flex; align-items: center; justify-content: space-between;
-    height: 44px; background: #1a1a1a; color: #fff; padding: 0 15px;
-    position: sticky; top: 0; z-index: 200;
+
+  /* ========== 导航栏 ========== */
+  .video-nav-bar-v2 {
+    display: flex; align-items: center; height: 52px;
+    background: #1a1a1a; color: #fff; padding: 0 16px;
+    flex-shrink: 0; z-index: 200;
   }
-  .video-nav-back {
-    width: 30px; height: 30px; display: flex; align-items: center;
-    justify-content: center; cursor: pointer; font-size: 20px; font-weight: bold;
+  .video-nav-back-v2 {
+    width: 36px; height: 36px; display: flex; align-items: center;
+    justify-content: center; cursor: pointer; font-size: 22px;
+    border-radius: 8px; transition: background 0.2s;
   }
-  .video-nav-title {
+  .video-nav-back-v2:hover { background: rgba(255,255,255,0.1); }
+  .video-nav-title-v2 {
     font-size: 16px; font-weight: 500; flex: 1; text-align: center;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 10px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 16px;
   }
-  .video-nav-right { width: 30px; }
-  .video-section-v1 { position: relative; width: 100%; background: #000; height: 200px; }
-  .video-player-v1 { width: 100%; height: 200px; display: block; object-fit: contain; background: #000; }
-  .video-placeholder-v1 {
+  .video-nav-right-v2 { width: 36px; }
+
+  /* ========== 主内容区 ========== */
+  .video-main-area-v2 {
+    flex: 1; display: flex; flex-direction: column;
+    max-width: 1280px; width: 100%; margin: 0 auto; padding: 0;
+  }
+
+  /* ========== 视频播放区 ========== */
+  .video-section-v2 {
+    position: relative; width: 100%; background: #000;
+    max-height: 55vh; min-height: 240px;
+  }
+  /* 在宽屏上用 16:9，但限制高度；窄屏自适应 */
+  @media (min-width: 769px) {
+    .video-section-v2 { aspect-ratio: 16 / 9; max-height: 60vh; }
+  }
+  @media (max-width: 768px) {
+    .video-section-v2 { aspect-ratio: auto; height: 240px; }
+  }
+  .video-player-v2 {
+    width: 100%; height: 100%; display: block; object-fit: contain; background: #000;
+  }
+  .video-placeholder-v2 {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     background: #000; display: flex; flex-direction: column;
     align-items: center; justify-content: center; z-index: 1;
   }
-  .video-spinner-v1 {
-    width: 30px; height: 30px; border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: #fff; border-radius: 50%;
-    animation: spin 1s linear infinite; margin-bottom: 8px;
+  .video-spinner-v2 {
+    width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.2);
+    border-top-color: #7c3aed; border-radius: 50%;
+    animation: spin-v2 0.8s linear infinite; margin-bottom: 12px;
   }
-  .video-loading-text-v1 { color: #fff; font-size: 14px; }
-  .video-cover-v1 {
+  @keyframes spin-v2 { to { transform: rotate(360deg); } }
+  .video-loading-text-v2 { color: #aaa; font-size: 14px; }
+  .video-cover-v2 {
     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.4); display: flex;
+    background: rgba(0,0,0,0.5); display: flex;
     align-items: center; justify-content: center; z-index: 5;
+    cursor: pointer;
   }
-  .play-btn-large-v1 {
-    width: 60px; height: 60px; background: rgba(255,255,255,0.9);
+  .play-btn-large-v2 {
+    width: 72px; height: 72px; background: rgba(255,255,255,0.92);
     border-radius: 50%; display: flex; align-items: center;
-    justify-content: center; font-size: 25px; color: #333;
-    padding-left: 5px; cursor: pointer;
+    justify-content: center; font-size: 28px; color: #1a1a1a;
+    padding-left: 6px; cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
   }
-  .progress-control-bar-v1 { background: #fff; padding: 10px 15px 8px; border-bottom: 1px solid #f0f0f0; }
-  .progress-row-v1 { display: flex; align-items: center; margin-bottom: 8px; }
-  .time-info-v1 { font-size: 12px; color: #666; min-width: 40px; text-align: center; }
-  .progress-track-wrapper-v1 {
-    flex: 1; position: relative; height: 6px; background: #e5e5e5;
-    border-radius: 3px; margin: 0 10px; cursor: pointer;
+  .play-btn-large-v2:hover { transform: scale(1.06); box-shadow: 0 6px 32px rgba(0,0,0,0.5); }
+
+  /* ========== 控制栏 ========== */
+  .progress-control-bar-v2 {
+    background: #1a1a1a; padding: 12px 20px 14px;
+    border-top: 1px solid #2a2a2a; flex-shrink: 0;
   }
-  .progress-fill-v1 {
+  .progress-row-v2 {
+    display: flex; align-items: center; margin-bottom: 12px;
+  }
+  .time-info-v2 {
+    font-size: 12px; color: #888; min-width: 42px; text-align: center;
+    font-variant-numeric: tabular-nums; font-family: 'SF Mono', 'Consolas', monospace;
+  }
+  .progress-track-wrapper-v2 {
+    flex: 1; position: relative; height: 5px; background: #3a3a3a;
+    border-radius: 3px; margin: 0 12px; cursor: pointer;
+    transition: height 0.15s;
+  }
+  .progress-track-wrapper-v2:hover { height: 7px; }
+  .progress-fill-v2 {
     position: absolute; top: 0; left: 0; height: 100%;
     background: linear-gradient(90deg, #7c3aed, #a78bfa); border-radius: 3px;
+    transition: width 0.1s linear;
   }
-  .progress-thumb-v1 {
+  .progress-thumb-v2 {
     position: absolute; top: 50%; transform: translate(-50%, -50%);
     width: 14px; height: 14px; background: #fff;
     border: 2px solid #7c3aed; border-radius: 50%;
+    opacity: 0; transition: opacity 0.15s;
   }
-  .progress-node-v1 {
+  .progress-track-wrapper-v2:hover .progress-thumb-v2 { opacity: 1; }
+  .progress-node-v2 {
     position: absolute; top: 50%; transform: translate(-50%, -50%);
-    width: 14px; height: 14px; border-radius: 50%; background: #f59e0b;
-    border: 2px solid #fff; box-shadow: 0 0 6px rgba(245,158,11,0.6);
-    cursor: pointer; z-index: 10;
+    width: 12px; height: 12px; border-radius: 50%; background: #f59e0b;
+    border: 2px solid #1a1a1a; box-shadow: 0 0 8px rgba(245,158,11,0.6);
+    cursor: pointer; z-index: 10; transition: transform 0.15s;
   }
-  .progress-node-v1.triggered { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6); }
-  .progress-node-v1.answered { background: #22c55e; }
-  .control-row-v1 { display: flex; align-items: center; justify-content: space-between; padding-top: 5px; }
-  .control-left-v1, .control-right-v1 { display: flex; align-items: center; gap: 10px; }
-  .control-btn-v1 {
-    width: 32px; height: 32px; background: #f5f5f5; border-radius: 50%;
+  .progress-node-v2:hover { transform: translate(-50%, -50%) scale(1.3); }
+  .progress-node-v2.triggered { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.6); }
+  .progress-node-v2.answered { background: #3b82f6; box-shadow: 0 0 8px rgba(59,130,246,0.6); }
+  .control-row-v2 {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .control-left-v2, .control-right-v2 { display: flex; align-items: center; gap: 12px; }
+  .control-btn-v2 {
+    width: 36px; height: 36px; background: #2a2a2a; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    color: #333; font-size: 12px; cursor: pointer;
+    color: #ccc; font-size: 13px; cursor: pointer;
+    transition: background 0.2s, color 0.2s; border: none;
   }
-  .play-pause-btn-v1 {
-    width: 40px; height: 40px;
-    background: linear-gradient(135deg, #7c3aed, #a78bfa);
-    color: #fff; font-size: 16px;
+  .control-btn-v2:hover { background: #3a3a3a; color: #fff; }
+  .play-pause-btn-v2 {
+    width: 44px; height: 44px;
+    background: #7c3aed; color: #fff; font-size: 18px;
   }
-  .interaction-toggle-v1.active { background: linear-gradient(135deg, #7c3aed, #a78bfa); color: #fff; }
-  .ai-float-btn-v1 {
-    width: 40px; height: 40px;
+  .play-pause-btn-v2:hover { background: #6d28d9; }
+  .interaction-toggle-v2.active { background: #7c3aed; color: #fff; }
+  .ai-btn-v2 {
+    width: 44px; height: 44px;
     background: linear-gradient(135deg, #7c3aed, #a78bfa);
     border-radius: 50%; display: flex; align-items: center;
-    justify-content: center; box-shadow: 0 2px 10px rgba(124,58,237,0.4);
-    cursor: pointer; font-size: 16px;
+    justify-content: center; box-shadow: 0 2px 12px rgba(124,58,237,0.4);
+    cursor: pointer; font-size: 18px; transition: transform 0.2s;
   }
-  .speed-selector-v1 { background: #fff; border-top: 1px solid #f0f0f0; padding: 10px 15px; }
-  .speed-list-v1 { display: flex; gap: 8px; flex-wrap: wrap; }
-  .speed-item-v1 {
-    padding: 8px 16px; background: #f5f5f5; border-radius: 20px;
-    font-size: 13px; color: #666; cursor: pointer;
+  .ai-btn-v2:hover { transform: scale(1.08); }
+
+  /* ========== 速度选择 ========== */
+  .speed-selector-v2 { background: #1a1a1a; border-top: 1px solid #2a2a2a; padding: 12px 20px; }
+  .speed-list-v2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .speed-item-v2 {
+    padding: 8px 18px; background: #2a2a2a; border-radius: 20px;
+    font-size: 13px; color: #aaa; cursor: pointer; transition: all 0.2s;
   }
-  .speed-item-v1.active { background: linear-gradient(135deg, #7c3aed, #a78bfa); color: #fff; }
-  .quiz-popup-overlay-v1 {
+  .speed-item-v2:hover { background: #3a3a3a; color: #fff; }
+  .speed-item-v2.active { background: #7c3aed; color: #fff; }
+
+  /* ========== 答题弹窗 ========== */
+  .quiz-popup-overlay-v2 {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.7); z-index: 9999;
-    display: flex; align-items: center; justify-content: center; padding: 20px;
+    background: rgba(0,0,0,0.75); z-index: 9999;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    backdrop-filter: blur(4px);
   }
-  .quiz-popup-box-v1 {
-    width: 100%; max-width: 325px; max-height: 80vh; background: #fff;
-    border-radius: 12px; padding: 15px; overflow-y: auto;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  .quiz-popup-box-v2 {
+    width: 100%; max-width: 420px; max-height: 85vh; background: #1e1e1e;
+    border-radius: 16px; padding: 20px; overflow-y: auto;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5); border: 1px solid #2a2a2a;
   }
-  .quiz-popup-header-v1 {
+  .quiz-popup-header-v2 {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #2a2a2a;
   }
-  .quiz-popup-title-v1 { font-size: 16px; font-weight: 600; color: #333; }
-  .quiz-close-btn-v1 {
-    width: 25px; height: 25px; display: flex; align-items: center;
-    justify-content: center; font-size: 18px; color: #999; cursor: pointer;
+  .quiz-popup-title-v2 { font-size: 16px; font-weight: 600; color: #fff; }
+  .quiz-close-btn-v2 {
+    width: 28px; height: 28px; display: flex; align-items: center;
+    justify-content: center; font-size: 18px; color: #888; cursor: pointer;
+    border-radius: 6px; transition: all 0.2s;
   }
-  .quiz-question-v1 {
-    font-size: 15px; color: #333; line-height: 1.5; margin-bottom: 15px;
-    padding: 12px; background: #f8f9fa; border-radius: 6px;
+  .quiz-close-btn-v2:hover { background: #2a2a2a; color: #fff; }
+  .quiz-question-v2 {
+    font-size: 15px; color: #e0e0e0; line-height: 1.6; margin-bottom: 16px;
+    padding: 14px; background: #252525; border-radius: 8px;
+    border-left: 3px solid #7c3aed;
   }
-  .quiz-options-v1 { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-  .quiz-option-v1 {
-    display: flex; align-items: center; padding: 11px; background: #f5f5f5;
-    border-radius: 6px; border: 1px solid transparent; cursor: pointer;
+  .quiz-options-v2 { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .quiz-option-v2 {
+    display: flex; align-items: center; padding: 12px 14px; background: #252525;
+    border-radius: 8px; border: 1px solid #2a2a2a; cursor: pointer;
+    transition: all 0.2s;
   }
-  .quiz-option-v1.selected { border-color: #8b5cf6; background: #f3e8ff; }
-  .quiz-option-v1.correct { border-color: #22c55e; background: #dcfce7; }
-  .quiz-option-v1.wrong { border-color: #ef4444; background: #fee2e2; }
-  .quiz-option-letter-v1 {
-    width: 24px; height: 24px; background: #e5e5e5; border-radius: 50%;
+  .quiz-option-v2:hover { background: #2a2a2a; border-color: #3a3a3a; }
+  .quiz-option-v2.selected { border-color: #7c3aed; background: rgba(124,58,237,0.15); }
+  .quiz-option-v2.correct { border-color: #22c55e; background: rgba(34,197,94,0.15); }
+  .quiz-option-v2.wrong { border-color: #ef4444; background: rgba(239,68,68,0.15); }
+  .quiz-option-letter-v2 {
+    width: 28px; height: 28px; background: #2a2a2a; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 600; color: #666; margin-right: 8px;
+    font-size: 13px; font-weight: 600; color: #aaa; margin-right: 10px;
+    flex-shrink: 0;
   }
-  .quiz-option-v1.selected .quiz-option-letter-v1 { background: #8b5cf6; color: #fff; }
-  .quiz-option-v1.correct .quiz-option-letter-v1 { background: #22c55e; color: #fff; }
-  .quiz-option-v1.wrong .quiz-option-letter-v1 { background: #ef4444; color: #fff; }
-  .quiz-option-text-v1 { font-size: 13px; color: #333; flex: 1; }
-  .quiz-result-v1 { margin-bottom: 10px; }
-  .result-message-v1 {
-    padding: 10px; border-radius: 6px; text-align: center;
-    font-size: 14px; font-weight: 600; margin-bottom: 8px;
+  .quiz-option-v2.selected .quiz-option-letter-v2 { background: #7c3aed; color: #fff; }
+  .quiz-option-v2.correct .quiz-option-letter-v2 { background: #22c55e; color: #fff; }
+  .quiz-option-v2.wrong .quiz-option-letter-v2 { background: #ef4444; color: #fff; }
+  .quiz-option-text-v2 { font-size: 14px; color: #ddd; flex: 1; }
+  .quiz-result-v2 { margin-bottom: 14px; }
+  .result-message-v2 {
+    padding: 12px; border-radius: 8px; text-align: center;
+    font-size: 14px; font-weight: 600; margin-bottom: 10px;
   }
-  .result-message-v1.success { background: #dcfce7; color: #22c55e; }
-  .result-message-v1.error { background: #fee2e2; color: #ef4444; }
-  .quiz-analysis-v1 {
-    padding: 10px; background: #f8f9fa; border-radius: 6px;
-    font-size: 12px; color: #666; line-height: 1.5;
+  .result-message-v2.success { background: rgba(34,197,94,0.15); color: #4ade80; }
+  .result-message-v2.error { background: rgba(239,68,68,0.15); color: #f87171; }
+  .quiz-analysis-v2 {
+    padding: 12px; background: #252525; border-radius: 8px;
+    font-size: 13px; color: #aaa; line-height: 1.6;
   }
-  .quiz-actions-v1 { display: flex; justify-content: center; }
-  .quiz-submit-btn-v1 {
-    padding: 12px 40px; border-radius: 25px; font-size: 14px;
-    text-align: center; cursor: pointer;
+  .quiz-actions-v2 { display: flex; justify-content: center; }
+  .quiz-submit-btn-v2 {
+    padding: 12px 48px; border-radius: 24px; font-size: 14px; font-weight: 500;
+    text-align: center; cursor: pointer; transition: all 0.2s; border: none;
   }
-  .quiz-submit-btn-v1.active { background: #8b5cf6; color: #fff; }
-  .quiz-submit-btn-v1.disabled { background: #e5e5e5; color: #999; pointer-events: none; }
-  .popup-overlay-v1 {
+  .quiz-submit-btn-v2.active { background: #7c3aed; color: #fff; }
+  .quiz-submit-btn-v2.active:hover { background: #6d28d9; }
+  .quiz-submit-btn-v2.disabled { background: #2a2a2a; color: #555; pointer-events: none; }
+
+  /* ========== 互动确认弹窗 ========== */
+  .popup-overlay-v2 {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.6); z-index: 9998;
+    background: rgba(0,0,0,0.7); z-index: 9998;
     display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
   }
-  .popup-box-v1 {
-    width: 280px; background: #fff; border-radius: 12px;
-    padding: 25px 20px; display: flex; flex-direction: column; align-items: center;
+  .popup-box-v2 {
+    width: 320px; background: #1e1e1e; border-radius: 16px;
+    padding: 28px 24px; display: flex; flex-direction: column; align-items: center;
+    border: 1px solid #2a2a2a; box-shadow: 0 8px 40px rgba(0,0,0,0.5);
   }
-  .popup-title-v1 { font-size: 17px; font-weight: 600; color: #333; margin-bottom: 8px; }
-  .popup-desc-v1 { font-size: 13px; color: #666; margin-bottom: 20px; text-align: center; }
-  .popup-buttons-v1 { display: flex; gap: 15px; width: 100%; }
-  .popup-btn-v1 { flex: 1; padding: 12px; border-radius: 25px; text-align: center; font-size: 15px; cursor: pointer; }
-  .popup-btn-v1.cancel { background: #e5e5e5; color: #999; }
-  .popup-btn-v1.confirm { background: #8b5cf6; color: #fff; }
-  .completion-overlay-v1 {
+  .popup-title-v2 { font-size: 17px; font-weight: 600; color: #fff; margin-bottom: 8px; }
+  .popup-desc-v2 { font-size: 14px; color: #aaa; margin-bottom: 24px; text-align: center; }
+  .popup-buttons-v2 { display: flex; gap: 16px; width: 100%; }
+  .popup-btn-v2 {
+    flex: 1; padding: 12px; border-radius: 24px; text-align: center;
+    font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.2s; border: none;
+  }
+  .popup-btn-v2.cancel { background: #2a2a2a; color: #aaa; }
+  .popup-btn-v2.cancel:hover { background: #3a3a3a; }
+  .popup-btn-v2.confirm { background: #7c3aed; color: #fff; }
+  .popup-btn-v2.confirm:hover { background: #6d28d9; }
+
+  /* ========== 完成遮罩 ========== */
+  .completion-overlay-v2 {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.85); z-index: 9997;
+    background: rgba(0,0,0,0.9); z-index: 9997;
     display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
   }
-  .completion-box-v1 {
-    width: 300px; background: #fff; border-radius: 16px;
-    padding: 30px 25px; display: flex; flex-direction: column; align-items: center;
+  .completion-box-v2 {
+    width: 360px; background: #1e1e1e; border-radius: 20px;
+    padding: 36px 28px; display: flex; flex-direction: column; align-items: center;
+    border: 1px solid #2a2a2a; box-shadow: 0 8px 48px rgba(0,0,0,0.6);
   }
-  .completion-icon-v1 {
-    width: 60px; height: 60px; background: #22c55e; border-radius: 50%;
+  .completion-icon-v2 {
+    width: 68px; height: 68px; background: #22c55e; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 30px; color: #fff; margin-bottom: 15px;
+    font-size: 32px; color: #fff; margin-bottom: 16px;
   }
-  .completion-title-v1 { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px; }
-  .completion-desc-v1 { font-size: 13px; color: #666; margin-bottom: 20px; }
-  .completion-stats-v1 {
+  .completion-title-v2 { font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 8px; }
+  .completion-desc-v2 { font-size: 14px; color: #aaa; margin-bottom: 24px; }
+  .completion-stats-v2 {
     display: flex; justify-content: space-around; width: 100%;
-    margin-bottom: 25px; padding: 15px 0;
-    border-top: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 28px; padding: 18px 0;
+    border-top: 1px solid #2a2a2a; border-bottom: 1px solid #2a2a2a;
   }
-  .completion-stat-item-v1 { display: flex; flex-direction: column; align-items: center; }
-  .completion-stat-value-v1 { font-size: 20px; font-weight: 600; color: #8b5cf6; margin-bottom: 5px; }
-  .completion-stat-label-v1 { font-size: 11px; color: #999; }
-  .completion-actions-v1 { display: flex; gap: 10px; width: 100%; }
-  .completion-btn-v1 {
-    flex: 1; padding: 12px 8px; border-radius: 25px; text-align: center;
-    font-size: 13px; font-weight: 500; cursor: pointer;
+  .completion-stat-item-v2 { display: flex; flex-direction: column; align-items: center; }
+  .completion-stat-value-v2 { font-size: 24px; font-weight: 700; color: #7c3aed; margin-bottom: 4px; }
+  .completion-stat-label-v2 { font-size: 12px; color: #888; }
+  .completion-actions-v2 { display: flex; gap: 10px; width: 100%; }
+  .completion-btn-v2 {
+    flex: 1; padding: 12px 6px; border-radius: 24px; text-align: center;
+    font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; border: none;
   }
-  .completion-btn-v1.replay { background: #f5f5f5; color: #666; border: 1px solid #e5e5e5; }
-  .completion-btn-v1.analysis { background: #8b5cf6; color: #fff; }
-  .completion-btn-v1.quiz { background: linear-gradient(135deg, #f5576c, #f093fb); color: #fff; }
+  .completion-btn-v2.replay { background: #2a2a2a; color: #ccc; }
+  .completion-btn-v2.replay:hover { background: #3a3a3a; }
+  .completion-btn-v2.analysis { background: #7c3aed; color: #fff; }
+  .completion-btn-v2.analysis:hover { background: #6d28d9; }
+  .completion-btn-v2.kg { background: linear-gradient(135deg, #f5576c, #f093fb); color: #fff; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
 `);
 
 // V1 video-play.html 完整逻辑
@@ -235,7 +320,9 @@ const StudentVideoLearning = () => {
   // 答题状态
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);       // 单选/判断/填空用
+  const [selectedMultiAnswers, setSelectedMultiAnswers] = useState([]); // 多选题用
+  const [fillText, setFillText] = useState('');                      // 填空/简答文本
   const [showAnswerResult, setShowAnswerResult] = useState(false);
   const [isAnswerCorrect, setIsAnswerCorrect] = useState(false);
   const [serverAnalysis, setServerAnalysis] = useState('');
@@ -366,30 +453,6 @@ const StudentVideoLearning = () => {
     }
   };
 
-  const formatOptions = (options) => {
-    if (!options) return [];
-    if (Array.isArray(options)) {
-      return options.map((opt, i) => {
-        if (typeof opt === 'string') return { id: i, letter: String.fromCharCode(65 + i), text: opt };
-        return { id: i, letter: opt.letter || opt.label || String.fromCharCode(65 + i), text: opt.text || opt.option || opt.content || String(opt) };
-      });
-    }
-    return [];
-  };
-
-  const getAnswerIndex = (options, answer) => {
-    if (!options || answer === undefined || answer === null) return 0;
-    const answerStr = String(answer).toUpperCase();
-    if (typeof answer === 'number') return answer;
-    if (/^\d+$/.test(answerStr)) return parseInt(answerStr);
-    for (let i = 0; i < options.length; i++) {
-      const opt = options[i];
-      if (typeof opt === 'string') { if (opt.toUpperCase() === answerStr) return i; }
-      else { if ((opt.label || '').toUpperCase() === answerStr || (opt.letter || '').toUpperCase() === answerStr) return i; }
-    }
-    const letterIndex = answerStr.charCodeAt(0) - 65;
-    return (letterIndex >= 0 && letterIndex < options.length) ? letterIndex : 0;
-  };
 
   const processVideoData = (videoData) => {
     const possibleUrlFields = ['url', 'play_url', 'video_url', 'videoUrl', 'src', 'video_src'];
@@ -427,13 +490,22 @@ const StudentVideoLearning = () => {
     if (segmentsData && Array.isArray(segmentsData) && segmentsData.length > 0) {
       segmentsData.forEach((seg, index) => {
         const questionData = seg.question || seg.questions || seg.problem || seg.quiz || null;
-        if (questionData) {
+        // 过滤空对象/无实质内容的题目
+        if (questionData && typeof questionData === 'object' && Object.keys(questionData).length > 0) {
+          // 跳过没有 type/content/title 的空题目
+          const hasContent = questionData.content || questionData.title || questionData.question || questionData.text;
+          if (!hasContent) return;
+
           const startMs = seg.start || seg.start_time || 0;
           const endMs = seg.end || seg.end_time || (seg.start || seg.start_time || 0) + 300000;
           const triggerTimeMs = endMs - 1000;
           const progressPct = duration > 0 ? (triggerTimeMs / duration) * 100 : 0;
-          const options = formatOptions(questionData.options);
-          const answerIdx = getAnswerIndex(questionData.options, questionData.answer || questionData.correct_answer || 0);
+
+          // 使用共享标准化函数
+          const normalized = normalizeQuestionData({
+            ...questionData,
+            id: questionData.id || seg.id || seg.segment_id,
+          });
 
           nodes.push({
             id: seg.id || index,
@@ -443,10 +515,9 @@ const StudentVideoLearning = () => {
             time: triggerTimeMs / 1000,
             progressPercent: progressPct,
             question: {
-              id: questionData.id || seg.id || seg.segment_id,
-              title: questionData.content || questionData.title || questionData.text || questionData.question || '题目内容',
-              options,
-              answerIndex: answerIdx,
+              ...normalized,
+              title: normalized.content || questionData.title || questionData.text || '题目内容',
+              answer: questionData.answer || questionData.correct_answer || questionData.answer_key || '',
               analysis: questionData.analysis || questionData.explanation || '',
               knowledge: questionData.knowledge || questionData.knowledge_point || '',
             },
@@ -544,16 +615,21 @@ const StudentVideoLearning = () => {
     setCurrentQuestionIndex(index);
     setCurrentQuestion({
       id: qData.id || node.id,
+      type: qData.type || QUESTION_TYPE.SINGLE_CHOICE,       // 题型 — 必须传递
       title: qData.title || qData.content || '题目内容',
       options: qData.options || [],
-      answerIndex: qData.answerIndex || 0,
+      answer: qData.answer || '',
+      parsedAnswer: qData.parsedAnswer || qData.answer || '', // 解析后的答案 — 用于比对
       analysis: qData.analysis || '',
       knowledge: qData.knowledge || '',
       segmentId: node.segmentId,
       segmentStart: node.start,
       segmentEnd: node.end,
+      difficulty: qData.difficulty || 0.5,
     });
     setSelectedAnswer(null);
+    setSelectedMultiAnswers([]);
+    setFillText('');
     setShowAnswerResult(false);
     setIsAnswerCorrect(false);
     setServerAnalysis('');
@@ -567,21 +643,21 @@ const StudentVideoLearning = () => {
   };
 
   // ========== 答题提交 ==========
-  const submitAnswerToServer = async (timeCost) => {
-    const question = currentQuestion;
-    if (!question || !studyRecordRef.current.videoId) return;
-    const answerLetter = question.options[selectedAnswer]?.letter || String.fromCharCode(65 + selectedAnswer);
+  const submitAnswerToServer = async (payLoad, timeCost) => {
+    if (!payLoad || !studyRecordRef.current.videoId) return;
+
+    const payload = {
+      ...payLoad,
+      question_id: payLoad.question_id || currentQuestion?.id,
+      time_cost: timeCost,
+    };
 
     try {
       const res = await fetchWithAuth('/api/v1/question/answer', {
         method: 'POST',
         body: {
           video_id: studyRecordRef.current.videoId,
-          studentanswers: [{
-            question_id: question.id,
-            answer: answerLetter,
-            time_cost: timeCost,
-          }],
+          studentanswers: [payload],
         },
       });
       if (res && (res.code === 0 || res.code === 200) && res.data?.results?.[0]) {
@@ -594,9 +670,42 @@ const StudentVideoLearning = () => {
   };
 
   const submitPopupAnswer = () => {
-    if (selectedAnswer === null) { message.info('请先选择答案'); return; }
+    const qType = currentQuestion?.type;
+    const meta = QUESTION_TYPE_META[qType];
+
+    // 校验各题型输入
+    if (meta?.hasOptions && selectedAnswer === null) {
+      message.info('请先选择答案'); return;
+    }
+    if (qType === QUESTION_TYPE.MULTIPLE_CHOICE && selectedMultiAnswers.length === 0) {
+      message.info('请至少选择一个答案'); return;
+    }
+    if ((qType === QUESTION_TYPE.FILL_BLANK || qType === QUESTION_TYPE.SHORT_ANSWER) && !fillText.trim()) {
+      message.info('请先输入答案'); return;
+    }
+
     const timeCost = Date.now() - questionStartTimeRef.current;
-    const correct = selectedAnswer === currentQuestion.answerIndex;
+
+    // 判断对错
+    let correct;
+    const qAnswer = currentQuestion?.answer;
+    const qParsedAnswer = currentQuestion?.parsedAnswer;
+
+    if (qType === QUESTION_TYPE.SINGLE_CHOICE) {
+      // 单选：selectedAnswer 是字母 "A"，parsedAnswer 也是字母 "A"
+      correct = selectedAnswer === qParsedAnswer;
+    } else if (qType === QUESTION_TYPE.TRUE_FALSE) {
+      // 判断：selectedAnswer 是字母 "A"/"B"，需映射到选项文本 "对"/"错" 再比较
+      const selectedOpt = qOptions.find(o => o.letter === selectedAnswer);
+      correct = selectedOpt?.text === qParsedAnswer;
+    } else if (qType === QUESTION_TYPE.MULTIPLE_CHOICE) {
+      correct = isAnswerCorrect(selectedMultiAnswers, qParsedAnswer || qAnswer, qType);
+    } else if (qType === QUESTION_TYPE.FILL_BLANK) {
+      correct = isAnswerCorrect(fillText.trim(), qParsedAnswer || qAnswer, qType);
+    } else {
+      // short_answer: 只要有输入就视为可提交
+      correct = fillText.trim().length > 0;
+    }
 
     setShowAnswerResult(true);
     setIsAnswerCorrect(correct);
@@ -607,12 +716,25 @@ const StudentVideoLearning = () => {
     // 标记已回答
     setAnsweredSegments((prev) => prev.includes(currentQuestion.segmentId) ? prev : [...prev, currentQuestion.segmentId]);
 
-    submitAnswerToServer(timeCost);
+    // 构建提交 payload
+    let answerValue;
+    if (qType === QUESTION_TYPE.MULTIPLE_CHOICE) {
+      answerValue = selectedMultiAnswers;
+    } else if (qType === QUESTION_TYPE.FILL_BLANK || qType === QUESTION_TYPE.SHORT_ANSWER) {
+      answerValue = fillText.trim();
+    } else {
+      answerValue = selectedAnswer;
+    }
+
+    const apiPayload = buildAnswerPayload(currentQuestion.id, answerValue, qType, timeCost);
+    submitAnswerToServer(apiPayload, timeCost);
 
     // 自动关闭弹窗并继续播放
     setTimeout(() => {
       setShowQuestionPopup(false);
       setSelectedAnswer(null);
+      setSelectedMultiAnswers([]);
+      setFillText('');
       setShowAnswerResult(false);
       if (videoRef.current) videoRef.current.play();
     }, 1500);
@@ -624,6 +746,8 @@ const StudentVideoLearning = () => {
     }
     setShowQuestionPopup(false);
     setSelectedAnswer(null);
+    setSelectedMultiAnswers([]);
+    setFillText('');
     setShowAnswerResult(false);
     if (videoRef.current) videoRef.current.pause();
   };
@@ -639,6 +763,8 @@ const StudentVideoLearning = () => {
     }
     setShowInteractionConfirm(false);
     setSelectedAnswer(null);
+    setSelectedMultiAnswers([]);
+    setFillText('');
     setShowAnswerResult(false);
     setShowQuestionPopup(true);
   };
@@ -648,6 +774,9 @@ const StudentVideoLearning = () => {
       setAnsweredSegments((prev) => prev.includes(currentQuestion.segmentId) ? prev : [...prev, currentQuestion.segmentId]);
     }
     setShowInteractionConfirm(false);
+    setSelectedAnswer(null);
+    setSelectedMultiAnswers([]);
+    setFillText('');
     if (videoRef.current) videoRef.current.pause();
   };
 
@@ -732,160 +861,258 @@ const StudentVideoLearning = () => {
   const correctAnswers = studyRecordRef.current.correctAnswers;
 
   return (
-    <div className="video-play-container">
+    <div className="video-play-container-v2">
       {/* 导航栏 */}
-      <div className="video-nav-bar">
-        <div className="video-nav-back" onClick={goBack}>←</div>
-        <div className="video-nav-title">{videoTitle}</div>
-        <div className="video-nav-right" />
+      <div className="video-nav-bar-v2">
+        <div className="video-nav-back-v2" onClick={goBack}>←</div>
+        <div className="video-nav-title-v2">{videoTitle}</div>
+        <div className="video-nav-right-v2" />
       </div>
 
-      {/* 视频区域 */}
-      <div className="video-section-v1" onClick={togglePlay}>
-        {isLoading && (
-          <div className="video-placeholder-v1">
-            <div className="video-spinner-v1" />
-            <div className="video-loading-text-v1">正在加载视频...</div>
-          </div>
-        )}
-        {!isLoading && videoError && (
-          <div className="video-placeholder-v1">
-            <div style={{ color: '#f87171', fontSize: 40, marginBottom: 12 }}>⚠</div>
-            <div style={{ color: '#fff', fontSize: 14, padding: '0 20px', textAlign: 'center' }}>{videoError}</div>
-            <div style={{ color: '#999', fontSize: 12, marginTop: 8, cursor: 'pointer', textDecoration: 'underline' }} onClick={() => loadVideoData()}>点击重试</div>
-          </div>
-        )}
-        <video
-          ref={videoRef}
-          className="video-player-v1"
-          src={videoSrc}
-          preload="auto"
-          playsInline
-          webkit-playsinline="true"
-          onPlay={handlePlay}
-          onPause={handlePause}
-          onTimeUpdate={handleTimeUpdate}
-          onEnded={handleVideoEnd}
-          onCanPlay={() => { setIsLoading(false); }}
-          onWaiting={() => setIsLoading(true)}
-        />
-        {showPlayBtn && !isPlaying && !isLoading && (
-          <div className="video-cover-v1" onClick={(e) => { e.stopPropagation(); videoRef.current?.play(); }}>
-            <div className="play-btn-large-v1">▶</div>
-          </div>
-        )}
-      </div>
-
-      {/* 进度条控制区域 */}
-      <div className="progress-control-bar-v1">
-        <div className="progress-row-v1">
-          <span className="time-info-v1">{formatTime(currentTime / 1000)}</span>
-          <div className="progress-track-wrapper-v1" onClick={tapProgressBar}>
-            <div className="progress-fill-v1" style={{ width: `${progressPercent}%` }} />
-            {interactionNodes.map((node, i) => (
+      {/* 主内容区 */}
+      <div className="video-main-area-v2">
+        {/* 视频播放区 */}
+        <div className="video-section-v2" onClick={togglePlay}>
+          {isLoading && (
+            <div className="video-placeholder-v2">
+              <div className="video-spinner-v2" />
+              <div className="video-loading-text-v2">正在加载视频...</div>
+            </div>
+          )}
+          {!isLoading && videoError && (
+            <div className="video-placeholder-v2">
+              <div style={{ color: '#f87171', fontSize: 48, marginBottom: 16 }}>⚠</div>
+              <div style={{ color: '#ccc', fontSize: 15, padding: '0 20px', textAlign: 'center', lineHeight: 1.6 }}>{videoError}</div>
               <div
-                key={i}
-                className={`progress-node-v1 ${triggeredNodes.includes(node.id) ? 'triggered' : ''} ${answeredSegments.includes(node.segmentId) ? 'answered' : ''}`}
-                style={{ left: `${node.progressPercent}%` }}
-                title={formatTime(node.time)}
-              />
-            ))}
-            <div className="progress-thumb-v1" style={{ left: `${progressPercent}%` }} />
-          </div>
-          <span className="time-info-v1">{formatTime(videoDuration / 1000)}</span>
-        </div>
-        <div className="control-row-v1">
-          <div className="control-left-v1">
-            <div className="control-btn-v1 play-pause-btn-v1" onClick={togglePlay}>
-              <span>{isPlaying ? '❚❚' : '▶'}</span>
-            </div>
-          </div>
-          <div className="control-right-v1">
-            <div className="control-btn-v1 speed-btn-v1" onClick={() => setShowSpeedOptions(!showSpeedOptions)}>
-              <span>{playbackSpeed}</span>
-            </div>
-            <div
-              className={`control-btn-v1 interaction-toggle-v1 ${enableInteraction ? 'active' : ''}`}
-              onClick={toggleInteraction}
-            >
-              <span>弹</span>
-            </div>
-            <div className="ai-float-btn-v1" onClick={openAI}>
-              <span>🤖</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 速度选择面板 */}
-      {showSpeedOptions && (
-        <div className="speed-selector-v1">
-          <div className="speed-list-v1">
-            {['0.5×', '0.75×', '1.0×', '1.25×', '1.5×', '2.0×'].map((s) => (
-              <div key={s} className={`speed-item-v1 ${playbackSpeed === s ? 'active' : ''}`} onClick={() => selectSpeed(s)}>{s}</div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 互动答题弹窗 */}
-      {showQuestionPopup && currentQuestion && (
-        <div className="quiz-popup-overlay-v1" onClick={closeQuestionPopup}>
-          <div className="quiz-popup-box-v1" onClick={(e) => e.stopPropagation()}>
-            <div className="quiz-popup-header-v1">
-              <span className="quiz-popup-title-v1">互动答题</span>
-              <span className="quiz-close-btn-v1" onClick={closeQuestionPopup}>✕</span>
-            </div>
-            <div className="quiz-question-v1">{currentQuestion.title}</div>
-            <div className="quiz-options-v1">
-              {(currentQuestion.options || []).map((opt, i) => {
-                let cls = 'quiz-option-v1';
-                if (selectedAnswer === i) cls += ' selected';
-                if (showAnswerResult && i === currentQuestion.answerIndex) cls += ' correct';
-                if (showAnswerResult && selectedAnswer === i && i !== currentQuestion.answerIndex) cls += ' wrong';
-                return (
-                  <div
-                    key={i}
-                    className={cls}
-                    onClick={() => { if (!showAnswerResult) setSelectedAnswer(i); }}
-                  >
-                    <div className="quiz-option-letter-v1">{opt.letter}</div>
-                    <span className="quiz-option-text-v1">{opt.text}</span>
-                  </div>
-                );
-              })}
-            </div>
-            {showAnswerResult && (
-              <div className="quiz-result-v1">
-                <div className={`result-message-v1 ${isAnswerCorrect ? 'success' : 'error'}`}>
-                  {isAnswerCorrect ? '✓ 回答正确！' : `✗ 回答错误，正确答案是 ${currentQuestion.options[currentQuestion.answerIndex]?.letter || ''}`}
-                </div>
-                {!isAnswerCorrect && (serverAnalysis || currentQuestion.analysis) && (
-                  <div className="quiz-analysis-v1">{serverAnalysis || currentQuestion.analysis}</div>
-                )}
-              </div>
-            )}
-            <div className="quiz-actions-v1">
-              <div
-                className={`quiz-submit-btn-v1 ${selectedAnswer !== null && !showAnswerResult ? 'active' : 'disabled'}`}
-                onClick={submitPopupAnswer}
+                style={{ color: '#7c3aed', fontSize: 13, marginTop: 16, cursor: 'pointer', padding: '8px 20px', border: '1px solid #7c3aed', borderRadius: 20 }}
+                onClick={() => loadVideoData()}
               >
-                {showAnswerResult ? '已完成' : '提交答案'}
+                点击重试
+              </div>
+            </div>
+          )}
+          <video
+            ref={videoRef}
+            className="video-player-v2"
+            src={videoSrc}
+            preload="auto"
+            playsInline
+            webkit-playsinline="true"
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onTimeUpdate={handleTimeUpdate}
+            onEnded={handleVideoEnd}
+            onCanPlay={() => { setIsLoading(false); }}
+            onWaiting={() => setIsLoading(true)}
+          />
+          {showPlayBtn && !isPlaying && !isLoading && (
+            <div className="video-cover-v2" onClick={(e) => { e.stopPropagation(); videoRef.current?.play(); }}>
+              <div className="play-btn-large-v2">▶</div>
+            </div>
+          )}
+        </div>
+
+        {/* 进度条控制区域 */}
+        <div className="progress-control-bar-v2">
+          <div className="progress-row-v2">
+            <span className="time-info-v2">{formatTime(currentTime / 1000)}</span>
+            <div className="progress-track-wrapper-v2" onClick={tapProgressBar}>
+              <div className="progress-fill-v2" style={{ width: `${progressPercent}%` }} />
+              {interactionNodes.map((node, i) => (
+                <div
+                  key={i}
+                  className={`progress-node-v2 ${triggeredNodes.includes(node.id) ? 'triggered' : ''} ${answeredSegments.includes(node.segmentId) ? 'answered' : ''}`}
+                  style={{ left: `${node.progressPercent}%` }}
+                  title={`互动节点: ${formatTime(node.time)}`}
+                />
+              ))}
+              <div className="progress-thumb-v2" style={{ left: `${progressPercent}%` }} />
+            </div>
+            <span className="time-info-v2">{formatTime(videoDuration / 1000)}</span>
+          </div>
+          <div className="control-row-v2">
+            <div className="control-left-v2">
+              <div className="control-btn-v2 play-pause-btn-v2" onClick={togglePlay}>
+                <span>{isPlaying ? '⏸' : '▶'}</span>
+              </div>
+              <div className="control-btn-v2" onClick={() => setShowSpeedOptions(!showSpeedOptions)} title="播放速度">
+                <span style={{ fontSize: 12, fontWeight: 600 }}>{playbackSpeed}</span>
+              </div>
+            </div>
+            <div className="control-right-v2">
+              <div
+                className={`control-btn-v2 interaction-toggle-v2 ${enableInteraction ? 'active' : ''}`}
+                onClick={toggleInteraction}
+                title={enableInteraction ? '互动已开启' : '互动已关闭'}
+              >
+                <span style={{ fontSize: 12 }}>弹题</span>
+              </div>
+              <div
+                className="control-btn-v2"
+                onClick={() => navigate(`/student/small-kg?videoId=${videoId}&classId=${classId || ''}&title=${encodeURIComponent(videoTitle)}`)}
+                title="知识图谱"
+              >
+                <span>🕸</span>
+              </div>
+              <div className="ai-btn-v2" onClick={openAI} title="AI 助手">
+                <span>🤖</span>
               </div>
             </div>
           </div>
         </div>
-      )}
+
+        {/* 速度选择面板 */}
+        {showSpeedOptions && (
+          <div className="speed-selector-v2">
+            <div className="speed-list-v2">
+              {['0.5×', '0.75×', '1.0×', '1.25×', '1.5×', '2.0×'].map((s) => (
+                <div key={s} className={`speed-item-v2 ${playbackSpeed === s ? 'active' : ''}`} onClick={() => selectSpeed(s)}>{s}</div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 互动答题弹窗 — 多题型支持 */}
+      {showQuestionPopup && currentQuestion && (() => {
+        const qType = currentQuestion.type;
+        const qMeta = QUESTION_TYPE_META[qType];
+        const qOptions = currentQuestion.options || [];
+        const qParsedAnswer = currentQuestion.parsedAnswer;
+        const isMulti = qType === QUESTION_TYPE.MULTIPLE_CHOICE;
+        const isFill = qType === QUESTION_TYPE.FILL_BLANK || qType === QUESTION_TYPE.SHORT_ANSWER;
+
+        return (
+          <div className="quiz-popup-overlay-v2" onClick={closeQuestionPopup}>
+            <div className="quiz-popup-box-v2" onClick={(e) => e.stopPropagation()}>
+              <div className="quiz-popup-header-v2">
+                <span className="quiz-popup-title-v2">
+                  {qMeta?.icon || '📝'} {qMeta?.shortLabel || '答题'}
+                </span>
+                <span className="quiz-close-btn-v2" onClick={closeQuestionPopup}>✕</span>
+              </div>
+
+              {/* 题目内容 */}
+              <div className="quiz-question-v2">{currentQuestion.title}</div>
+
+              {/* --- 单选/判断题 选项区 --- */}
+              {(qType === QUESTION_TYPE.SINGLE_CHOICE || qType === QUESTION_TYPE.TRUE_FALSE) && (
+                <div className="quiz-options-v2">
+                  {qOptions.map((opt, i) => {
+                    const isCorrectOpt = showAnswerResult && opt.letter === qParsedAnswer;
+                    const isWrongOpt = showAnswerResult && selectedAnswer === opt.letter && opt.letter !== qParsedAnswer;
+                    let cls = 'quiz-option-v2';
+                    if (selectedAnswer === opt.letter) cls += ' selected';
+                    if (isCorrectOpt) cls += ' correct';
+                    if (isWrongOpt) cls += ' wrong';
+                    return (
+                      <div key={i} className={cls} onClick={() => { if (!showAnswerResult) setSelectedAnswer(opt.letter); }}>
+                        <div className="quiz-option-letter-v2">{opt.letter}</div>
+                        <span className="quiz-option-text-v2">{opt.text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* --- 多选题 选项区 --- */}
+              {qType === QUESTION_TYPE.MULTIPLE_CHOICE && (
+                <div className="quiz-options-v2">
+                  <Checkbox.Group
+                    value={selectedMultiAnswers}
+                    onChange={setSelectedMultiAnswers}
+                    disabled={showAnswerResult}
+                    style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}
+                  >
+                    {qOptions.map((opt, i) => {
+                      const isCorrectOpt = showAnswerResult && Array.isArray(qParsedAnswer) && qParsedAnswer.includes(opt.letter);
+                      const isWrongOpt = showAnswerResult && selectedMultiAnswers.includes(opt.letter) && !(Array.isArray(qParsedAnswer) && qParsedAnswer.includes(opt.letter));
+                      return (
+                        <div
+                          key={i}
+                          className={`quiz-option-v2${isCorrectOpt ? ' correct' : ''}${isWrongOpt ? ' wrong' : ''}${selectedMultiAnswers.includes(opt.letter) ? ' selected' : ''}`}
+                        >
+                          <Checkbox value={opt.letter} style={{ width: '100%' }}>
+                            <span style={{ fontSize: 14, color: '#ddd' }}>
+                              <b style={{ color: '#aaa', marginRight: 6 }}>{opt.letter}.</b>
+                              {opt.text}
+                            </span>
+                          </Checkbox>
+                        </div>
+                      );
+                    })}
+                  </Checkbox.Group>
+                </div>
+              )}
+
+              {/* --- 填空/简答 输入区 --- */}
+              {isFill && (
+                <div style={{ marginBottom: 12 }}>
+                  <textarea
+                    value={fillText}
+                    onChange={(e) => setFillText(e.target.value)}
+                    placeholder={qType === QUESTION_TYPE.FILL_BLANK ? '请输入答案，多个空用逗号分隔...' : '请输入你的答案...'}
+                    disabled={showAnswerResult}
+                    rows={3}
+                    style={{
+                      width: '100%', padding: 12, borderRadius: 8,
+                      background: '#252525', border: '1px solid #3a3a3a',
+                      color: '#e0e0e0', fontSize: 14, resize: 'vertical',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* 结果反馈 */}
+              {showAnswerResult && (
+                <div className="quiz-result-v2">
+                  <div className={`result-message-v2 ${isAnswerCorrect ? 'success' : 'error'}`}>
+                    {isAnswerCorrect ? '✓ 回答正确！' : '✗ 回答错误'}
+                    {!isAnswerCorrect && qParsedAnswer && (
+                      <span style={{ marginLeft: 8, fontSize: 12 }}>
+                        （正确答案：{Array.isArray(qParsedAnswer) ? qParsedAnswer.join(', ') : String(qParsedAnswer)}）
+                      </span>
+                    )}
+                  </div>
+                  {!isAnswerCorrect && (serverAnalysis || currentQuestion.analysis) && (
+                    <div className="quiz-analysis-v2">{serverAnalysis || currentQuestion.analysis}</div>
+                  )}
+                </div>
+              )}
+
+              {/* 提交按钮 */}
+              <div className="quiz-actions-v2">
+                {(() => {
+                  const canSubmit = !showAnswerResult && (
+                    (qType === QUESTION_TYPE.MULTIPLE_CHOICE && selectedMultiAnswers.length > 0) ||
+                    (isFill && fillText.trim()) ||
+                    (!isMulti && !isFill && selectedAnswer !== null)
+                  );
+                  return (
+                    <div
+                      className={`quiz-submit-btn-v2 ${canSubmit ? 'active' : 'disabled'}`}
+                      onClick={canSubmit ? submitPopupAnswer : undefined}
+                    >
+                      {showAnswerResult ? '已完成' : '提交答案'}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 互动确认弹窗 */}
       {showInteractionConfirm && (
-        <div className="popup-overlay-v1" onClick={cancelInteraction}>
-          <div className="popup-box-v1" onClick={(e) => e.stopPropagation()}>
-            <div className="popup-title-v1">是否进行互动?</div>
-            <div className="popup-desc-v1">视频将在互动点暂停，请回答问题</div>
-            <div className="popup-buttons-v1">
-              <div className="popup-btn-v1 cancel" onClick={cancelInteraction}>取消</div>
-              <div className="popup-btn-v1 confirm" onClick={confirmInteraction}>确认</div>
+        <div className="popup-overlay-v2" onClick={cancelInteraction}>
+          <div className="popup-box-v2" onClick={(e) => e.stopPropagation()}>
+            <div className="popup-title-v2">是否进行互动?</div>
+            <div className="popup-desc-v2">视频将在互动点暂停，请回答问题</div>
+            <div className="popup-buttons-v2">
+              <div className="popup-btn-v2 cancel" onClick={cancelInteraction}>取消</div>
+              <div className="popup-btn-v2 confirm" onClick={confirmInteraction}>确认</div>
             </div>
           </div>
         </div>
@@ -893,30 +1120,42 @@ const StudentVideoLearning = () => {
 
       {/* 视频完成遮罩层 */}
       {showCompletion && (
-        <div className="completion-overlay-v1">
-          <div className="completion-box-v1">
-            <div className="completion-icon-v1">✓</div>
-            <div className="completion-title-v1">视频已播放完成</div>
-            <div className="completion-desc-v1">恭喜您完成了本次视频学习</div>
-            <div className="completion-stats-v1">
-              <div className="completion-stat-item-v1">
-                <span className="completion-stat-value-v1">{completionRate}%</span>
-                <span className="completion-stat-label-v1">完成度</span>
+        <div className="completion-overlay-v2">
+          <div className="completion-box-v2">
+            <div className="completion-icon-v2">✓</div>
+            <div className="completion-title-v2">视频已播放完成</div>
+            <div className="completion-desc-v2">恭喜您完成了本次视频学习</div>
+            <div className="completion-stats-v2">
+              <div className="completion-stat-item-v2">
+                <span className="completion-stat-value-v2">{completionRate}%</span>
+                <span className="completion-stat-label-v2">完成度</span>
               </div>
-              <div className="completion-stat-item-v1">
-                <span className="completion-stat-value-v1">{totalQuestions}</span>
-                <span className="completion-stat-label-v1">答题数</span>
+              <div className="completion-stat-item-v2">
+                <span className="completion-stat-value-v2">{totalQuestions}</span>
+                <span className="completion-stat-label-v2">答题数</span>
               </div>
-              <div className="completion-stat-item-v1">
-                <span className="completion-stat-value-v1">{correctAnswers}</span>
-                <span className="completion-stat-label-v1">正确数</span>
+              <div className="completion-stat-item-v2">
+                <span className="completion-stat-value-v2">{correctAnswers}</span>
+                <span className="completion-stat-label-v2">正确数</span>
               </div>
             </div>
-            <div className="completion-actions-v1">
-              <div className="completion-btn-v1 replay" onClick={replayVideo}>重新播放</div>
-              <div className="completion-btn-v1 analysis" onClick={() => navigate(`/student/report?videoId=${videoId}&title=${encodeURIComponent(videoTitle)}`)}>查看学情分析</div>
-              <div className="completion-btn-v1 quiz" onClick={() => navigate(`/student/practice?videoId=${videoId}&title=${encodeURIComponent(videoTitle)}`)}>个性练习</div>
+            <div className="completion-actions-v2">
+              <div className="completion-btn-v2 replay" onClick={replayVideo}>重新播放</div>
+              <div className="completion-btn-v2 analysis" onClick={() => navigate(`/student/report?videoId=${videoId}&title=${encodeURIComponent(videoTitle)}`)}>学情分析</div>
+              <div className="completion-btn-v2 kg" onClick={() => navigate(`/student/small-kg?videoId=${videoId}&classId=${classId || ''}&title=${encodeURIComponent(videoTitle)}`)}>知识图谱</div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 视频底部信息区 */}
+      {!isLoading && !videoError && (
+        <div style={{
+          background: '#1a1a1a', padding: '16px 20px',
+          borderTop: '1px solid #2a2a2a', flexShrink: 0,
+        }}>
+          <div style={{ color: '#888', fontSize: 12 }}>
+            当前进度 {completionRate}% · 已答 {totalQuestions} 题 · 正确 {correctAnswers} 题
           </div>
         </div>
       )}

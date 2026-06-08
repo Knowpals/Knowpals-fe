@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal, Select, Input, Button, message, Tag, Card,
-  Typography, Space, Alert, Drawer, Spin
+  Typography, Space, Alert, Drawer, Spin, Checkbox
 } from 'antd';
 import { PlusOutlined, RobotOutlined, UploadOutlined, NodeIndexOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import MainLayout from '../../layouts/TeacherLayout';
 import { getVideoDetail, generateQuestions, getMyCreatedClasses, publishVideo, agentQuiz, getMyUploadedVideos, addQuestion, updateQuestion, deleteQuestion } from '../../services/teacherApi';
+import {
+  QUESTION_TYPE, QUESTION_TYPE_META, OPTION_LETTERS,
+  normalizeQuestionType, getQuestionTypeLabel, formatOptions,
+  normalizeQuestionData,
+} from '../../constants/questionTypes';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -23,7 +28,10 @@ const VideoDetailEdit = () => {
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [questionType, setQuestionType] = useState('选择题');
+  const [questionType, setQuestionType] = useState(QUESTION_TYPE.SINGLE_CHOICE);
+
+  // 多选题答案（数组）
+  const [multiAnswer, setMultiAnswer] = useState([]);
   const [quizCount, setQuizCount] = useState(5);
 
   // 互动点相关
@@ -65,35 +73,36 @@ const VideoDetailEdit = () => {
   // 当编辑弹窗打开且currentPoint有值时，同步formData
   useEffect(() => {
     if (editModalOpen && currentPoint) {
-      // 获取题目类型
-      const rawType = currentPoint.type || currentPoint.question_type || currentPoint.questionType || currentPoint.q_type || '选择题';
-      const typeMapping = {
-        'choice': '选择题',
-        'multiple_choice': '选择题',
-        'single_choice': '选择题',
-        'judge': '判断题',
-        'true_false': '判断题',
-        'short_answer': '简答题',
-        'fill_blank': '填空题',
-        'fill_in_blank': '填空题',
-      };
-      const questionType = typeMapping[rawType.toLowerCase()] || rawType;
-      setQuestionType(questionType);
-      
+      // 使用共享常量标准化题型
+      const normalized = normalizeQuestionData(currentPoint);
+      setQuestionType(normalized.type);
+
       // 处理选项
       let options = currentPoint.options || currentPoint.choices || [];
       if (typeof options === 'string') {
-        options = options.split(',').map(opt => opt.trim());
+        try { options = JSON.parse(options); } catch { options = options.split(',').map(opt => opt.trim()); }
       }
-      while (options.length < 4) {
-        options.push('');
+      const meta = QUESTION_TYPE_META[normalized.type];
+      const optCount = meta.hasOptions ? Math.max(meta.defaultOptionCount, options.length) : 0;
+      while (options.length < optCount) options.push('');
+
+      // 多选题答案同步
+      if (normalized.type === QUESTION_TYPE.MULTIPLE_CHOICE) {
+        const ans = currentPoint.answer || currentPoint.correctAnswer || '';
+        if (Array.isArray(ans)) {
+          setMultiAnswer(ans);
+        } else if (typeof ans === 'string' && ans.includes(',')) {
+          setMultiAnswer(ans.split(',').map(s => s.trim()));
+        } else if (typeof ans === 'string') {
+          setMultiAnswer(ans ? [ans] : []);
+        }
       }
-      
+
       // 填充表单
       setFormData({
-        title: currentPoint.title || currentPoint.content || currentPoint.question_title || currentPoint.questionTitle || '',
+        title: normalized.content,
         insertTime: String(currentPoint.time || currentPoint.insert_time || currentPoint.insertTime || currentPoint.timestamp || ''),
-        options: options.slice(0, 4),
+        options: options.slice(0, meta.hasOptions ? Math.max(meta.defaultOptionCount, 8) : 0),
         correctAnswer: currentPoint.answer || currentPoint.correctAnswer || currentPoint.right_answer || currentPoint.answer_key || '',
         analysis: currentPoint.analysis || currentPoint.explanation || ''
       });
@@ -101,20 +110,10 @@ const VideoDetailEdit = () => {
   }, [editModalOpen, currentPoint]);
 
 
-  // 题目类型中文映射
-  const getQuestionTypeLabel = (type) => {
-    const typeMap = {
-      'choice': '单选题',
-      'single_choice': '单选题',
-      'multiple_choice': '多选题',
-      'true_false': '判断题',
-      'fill_blank': '填空题',
-      'qa': '问答题',
-      'fill': '填空题',
-      'subjective': '主观题'
-    };
-    return typeMap[type] || type || '选择题';
-  };
+  // 题目类型中文映射（使用共享常量）
+  const localGetQTypeLabel = (type) => localGetQTypeLabel(type);
+  const localGetQTypeColor = (type) => QUESTION_TYPE_META[normalizeQuestionType(type)]?.color || '#666';
+  const localGetQTypeBg = (type) => QUESTION_TYPE_META[normalizeQuestionType(type)]?.bg || '#f5f5f5';
   
   const fetchVideoDetail = async () => {
     setLoading(true);
@@ -150,7 +149,7 @@ const VideoDetailEdit = () => {
             id: seg.question.id,
             title: seg.question.content || seg.question.title || '',
             content: seg.question.content || seg.question.title || '',
-            typeLabel: getQuestionTypeLabel(seg.question.type),
+            typeLabel: localGetQTypeLabel(seg.question.type),
             time: seg.start ? seg.start / 1000 : 0,
             segment_id: seg.id,
           }));
@@ -161,7 +160,7 @@ const VideoDetailEdit = () => {
           ...q,
           id: q.id,
           title: q.content || q.title || '',
-          typeLabel: getQuestionTypeLabel(q.type),
+          typeLabel: localGetQTypeLabel(q.type),
           time: 0,
           segment_id: q.segment_id || 0,
         }));
@@ -278,7 +277,7 @@ const VideoDetailEdit = () => {
           ...q,
           content: q.question || q.content,
           title: q.question || q.content || '',
-          typeLabel: getQuestionTypeLabel(q.type),
+          typeLabel: localGetQTypeLabel(q.type),
           time: 0,
         }));
       } catch {
@@ -300,7 +299,7 @@ const VideoDetailEdit = () => {
       const allPoints = [...pointList, ...questions.map((q) => ({
         ...q,
         title: q.title || q.content || q.question || q.question_title || '',
-        typeLabel: q.typeLabel || getQuestionTypeLabel(q.type || q.question_type),
+        typeLabel: q.typeLabel || localGetQTypeLabel(q.type || q.question_type),
         time: q.time || q.insert_time || q.insertTime || 0,
       }))];
 
@@ -316,41 +315,56 @@ const VideoDetailEdit = () => {
 
   // 新增互动点提交（调用后端接口）
   const handleAddQuestion = async () => {
-    if (questionType === '选择题' && formData.options.some(opt => !opt)) {
-      message.warning('请先输入题目选项');
+    const meta = QUESTION_TYPE_META[questionType];
+
+    // 选择题需校验选项
+    if (meta.hasOptions && formData.options.filter(o => o).length < 2) {
+      message.warning('请至少输入 2 个选项');
       return;
     }
-    if (!formData.title || !formData.insertTime || !formData.correctAnswer) {
-      message.warning('请填写完整的互动点信息');
+    // 多选题需校验多选答案
+    if (questionType === QUESTION_TYPE.MULTIPLE_CHOICE && multiAnswer.length === 0) {
+      message.warning('请至少选择一个正确答案');
+      return;
+    }
+    if (!formData.title || !formData.insertTime) {
+      message.warning('请填写题目内容和插入时间点');
+      return;
+    }
+    if (questionType !== QUESTION_TYPE.MULTIPLE_CHOICE && !formData.correctAnswer) {
+      message.warning('请填写正确答案');
       return;
     }
 
     try {
+      // 构建答案：多选题用数组，其他用字符串
+      const answer = questionType === QUESTION_TYPE.MULTIPLE_CHOICE
+        ? multiAnswer
+        : formData.correctAnswer;
+
       const apiData = {
         video_id: parseInt(videoId),
         content: formData.title,
-        type: questionType === '选择题' ? 'choice'
-          : questionType === '判断题' ? 'judge'
-          : questionType === '填空题' ? 'fill'
-          : 'subjective',
-        answer: formData.correctAnswer,
+        type: meta.apiType,
+        answer: answer,
         time_ms: (parseInt(formData.insertTime) || 0) * 1000,
         analysis: formData.analysis,
-        options: questionType === '选择题' ? formData.options.filter(o => o) : undefined,
+        options: meta.hasOptions ? formData.options.filter(o => o) : undefined,
       };
       await addQuestion(apiData);
       message.success('互动点添加成功');
       setIsAddModalOpen(false);
       setFormData({ title: '', insertTime: '', options: ['', '', '', ''], correctAnswer: '', analysis: '' });
+      setMultiAnswer([]);
       // 刷新题目列表
       const refreshRes = await getVideoDetail(videoId);
       const rd = refreshRes.data;
       const segs = rd?.segments || [];
       let freshQ = segs
         .filter(s => s.question && Object.keys(s.question).length > 0)
-        .map(s => ({ ...s.question, id: s.question.id, title: s.question.content || s.question.title || '', typeLabel: getQuestionTypeLabel(s.question.type), time: s.start ? s.start / 1000 : 0, segment_id: s.id }));
+        .map(s => ({ ...s.question, id: s.question.id, title: s.question.content || s.question.title || '', typeLabel: localGetQTypeLabel(s.question.type), time: s.start ? s.start / 1000 : 0, segment_id: s.id }));
       if (freshQ.length === 0) {
-        freshQ = (rd?.questions || []).map(q => ({ ...q, id: q.id, title: q.content || q.title || '', typeLabel: getQuestionTypeLabel(q.type), time: 0, segment_id: q.segment_id || 0 }));
+        freshQ = (rd?.questions || []).map(q => ({ ...q, id: q.id, title: q.content || q.title || '', typeLabel: localGetQTypeLabel(q.type), time: 0, segment_id: q.segment_id || 0 }));
       }
       setPointList(freshQ);
     } catch (error) {
@@ -709,7 +723,9 @@ const VideoDetailEdit = () => {
             {/* 互动点标记 */}
             {pointList.map((point, idx) => {
               const title = point.title ?? point.question_title ?? point.questionTitle ?? point.content ?? '互动点';
-              const type = point.typeLabel || getQuestionTypeLabel(point.type ?? point.question_type ?? point.questionType);
+              const normPtType = normalizeQuestionType(point.type ?? point.question_type ?? point.questionType ?? '');
+              const ptMeta = QUESTION_TYPE_META[normPtType];
+              const type = point.typeLabel || ptMeta.label;
               const timeValue = parseFloat(point.time ?? point.insert_time ?? point.insertTime ?? 0) || 0;
               const percent = duration > 0 && timeValue > 0 ? (timeValue / duration) * 100 : 0;
               return (
@@ -723,10 +739,7 @@ const VideoDetailEdit = () => {
                     width: 16,
                     height: 16,
                     borderRadius: '50%',
-                    background: type === '单选题' || type === '选择题' ? '#1890ff' : 
-                               type === '多选题' ? '#722ed1' :
-                               type === '判断题' ? '#52c41a' : 
-                               type === '填空题' ? '#faad14' : '#722ed1',
+                    background: ptMeta?.color || '#722ed1',
                     border: '3px solid white',
                     cursor: 'pointer',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
@@ -789,24 +802,37 @@ const VideoDetailEdit = () => {
         onCancel={() => {
           setIsAddModalOpen(false);
           setFormData({ title: '', insertTime: '', options: ['', '', '', ''], correctAnswer: '', analysis: '' });
+          setMultiAnswer([]);
         }}
         footer={null}
-        width={500}
+        width={560}
       >
+        {/* 题目类型选择 */}
         <div style={{ marginBottom: 16 }}>
           <Text strong>题目类型：</Text>
           <Select
             value={questionType}
-            onChange={setQuestionType}
+            onChange={(val) => {
+              setQuestionType(val);
+              setFormData(prev => ({ ...prev, correctAnswer: '' }));
+              setMultiAnswer([]);
+              // 判断题自动补默认选项
+              if (val === QUESTION_TYPE.TRUE_FALSE) {
+                setFormData(prev => ({ ...prev, options: ['对', '错'] }));
+              }
+            }}
             style={{ width: '100%', marginTop: 8 }}
           >
-            <Option value="选择题">选择题</Option>
-            <Option value="判断题">判断题</Option>
-            <Option value="简答题">简答题</Option>
-            <Option value="填空题">填空题</Option>
+            {Object.entries(QUESTION_TYPE_META).map(([key, meta]) => (
+              <Select.Option key={key} value={key}>
+                <span>{meta.icon} {meta.label}</span>
+                <span style={{ color: '#999', fontSize: 11, marginLeft: 8 }}>{meta.answerHint}</span>
+              </Select.Option>
+            ))}
           </Select>
         </div>
 
+        {/* 题目内容 */}
         <div style={{ marginBottom: 16 }}>
           <Text strong>题目标题：</Text>
           <Input
@@ -817,6 +843,7 @@ const VideoDetailEdit = () => {
           />
         </div>
 
+        {/* 插入时间点 */}
         <div style={{ marginBottom: 16 }}>
           <Text strong>插入时间点（秒）：</Text>
           <Input
@@ -828,58 +855,100 @@ const VideoDetailEdit = () => {
           />
         </div>
 
-        {questionType === '选择题' && (
+        {/* --- 选择题选项区 --- */}
+        {(questionType === QUESTION_TYPE.SINGLE_CHOICE || questionType === QUESTION_TYPE.MULTIPLE_CHOICE) && (
           <div style={{ marginBottom: 16 }}>
-            <Text strong>选项：</Text>
-            {['A', 'B', 'C', 'D'].map((opt, index) => (
-              <Input
-                key={opt}
-                placeholder={`选项${opt}`}
-                value={formData.options[index]}
-                onChange={(e) => {
-                  const newOptions = [...formData.options];
-                  newOptions[index] = e.target.value;
-                  setFormData({ ...formData, options: newOptions });
-                }}
-                style={{ marginTop: 8 }}
-              />
+            <Text strong>选项（{questionType === QUESTION_TYPE.MULTIPLE_CHOICE ? '可多选正确答案' : '单选'}）：</Text>
+            {formData.options.map((opt, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                <span style={{
+                  width: 24, height: 24, borderRadius: '50%',
+                  background: '#f0f0f0', color: '#666',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 600, flexShrink: 0,
+                }}>
+                  {OPTION_LETTERS[idx]}
+                </span>
+                <Input
+                  placeholder={`选项 ${OPTION_LETTERS[idx]}`}
+                  value={opt}
+                  onChange={(e) => {
+                    const newOptions = [...formData.options];
+                    newOptions[idx] = e.target.value;
+                    setFormData({ ...formData, options: newOptions });
+                  }}
+                  style={{ flex: 1 }}
+                />
+              </div>
             ))}
+            <Button
+              type="dashed" size="small"
+              style={{ marginTop: 8 }}
+              onClick={() => setFormData(prev => ({ ...prev, options: [...prev.options, ''] }))}
+            >
+              + 添加选项
+            </Button>
+
+            {/* 正确答案 */}
             <div style={{ marginTop: 16 }}>
-              <Text strong>正确答案：</Text>
-              <Select
-                placeholder="选择正确答案"
-                value={formData.correctAnswer || undefined}
-                onChange={(val) => setFormData({ ...formData, correctAnswer: val })}
-                style={{ width: '100%', marginTop: 8 }}
-              >
-                {['A', 'B', 'C', 'D'].map(opt => (
-                  <Option key={opt} value={opt}>{opt}. {formData.options[['A', 'B', 'C', 'D'].indexOf(opt)] || `选项${opt}`}</Option>
-                ))}
-              </Select>
+              <Text strong>{QUESTION_TYPE_META[questionType].answerLabel}：</Text>
+              {questionType === QUESTION_TYPE.SINGLE_CHOICE ? (
+                <Select
+                  placeholder="选择正确选项"
+                  value={formData.correctAnswer || undefined}
+                  onChange={(val) => setFormData({ ...formData, correctAnswer: val })}
+                  style={{ width: '100%', marginTop: 8 }}
+                >
+                  {formData.options.map((opt, idx) =>
+                    opt ? <Select.Option key={OPTION_LETTERS[idx]} value={OPTION_LETTERS[idx]}>{OPTION_LETTERS[idx]}. {opt}</Select.Option> : null
+                  )}
+                </Select>
+              ) : (
+                <div style={{ marginTop: 8 }}>
+                  <Checkbox.Group
+                    value={multiAnswer}
+                    onChange={setMultiAnswer}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+                  >
+                    {formData.options.map((opt, idx) =>
+                      opt ? (
+                        <Checkbox key={OPTION_LETTERS[idx]} value={OPTION_LETTERS[idx]}>
+                          {OPTION_LETTERS[idx]}. {opt}
+                        </Checkbox>
+                      ) : null
+                    )}
+                  </Checkbox.Group>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {questionType === '判断题' && (
+        {/* --- 判断题答案区 --- */}
+        {questionType === QUESTION_TYPE.TRUE_FALSE && (
           <div style={{ marginBottom: 16 }}>
-            <Text strong>正确答案：</Text>
+            <Text strong>{QUESTION_TYPE_META[questionType].answerLabel}：</Text>
             <Select
-              placeholder="选择正确答案"
+              placeholder="选择对或错"
               value={formData.correctAnswer || undefined}
               onChange={(val) => setFormData({ ...formData, correctAnswer: val })}
               style={{ width: '100%', marginTop: 8 }}
             >
-              <Option value="对">对</Option>
-              <Option value="错">错</Option>
+              <Select.Option value="对">对 (True)</Select.Option>
+              <Select.Option value="错">错 (False)</Select.Option>
             </Select>
           </div>
         )}
 
-        {(questionType === '简答题' || questionType === '填空题') && (
+        {/* --- 填空/简答答案区 --- */}
+        {(questionType === QUESTION_TYPE.FILL_BLANK || questionType === QUESTION_TYPE.SHORT_ANSWER) && (
           <div style={{ marginBottom: 16 }}>
-            <Text strong>参考答案：</Text>
+            <Text strong>{QUESTION_TYPE_META[questionType].answerLabel}：</Text>
+            <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
+              {QUESTION_TYPE_META[questionType].answerHint}
+            </Text>
             <TextArea
-              placeholder="请输入参考答案"
+              placeholder={questionType === QUESTION_TYPE.FILL_BLANK ? '多个填空答案用 | 分隔，如：泰勒|Newton|迭代' : '输入参考答案或评分要点'}
               value={formData.correctAnswer}
               onChange={(e) => setFormData({ ...formData, correctAnswer: e.target.value })}
               rows={3}
@@ -888,6 +957,7 @@ const VideoDetailEdit = () => {
           </div>
         )}
 
+        {/* 答案解析 */}
         <div style={{ marginBottom: 16 }}>
           <Text strong>答案解析：</Text>
           <TextArea
@@ -900,7 +970,10 @@ const VideoDetailEdit = () => {
         </div>
 
         <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button onClick={() => setIsAddModalOpen(false)}>取消</Button>
+          <Button onClick={() => {
+            setIsAddModalOpen(false);
+            setMultiAnswer([]);
+          }}>取消</Button>
           <Button type="primary" onClick={handleAddQuestion} style={{ background: '#722ed1', borderColor: '#722ed1' }}>
             确认添加
           </Button>
@@ -984,32 +1057,28 @@ const VideoDetailEdit = () => {
             {pointList.map((item, index) => {
               const title = item.title ?? item.content ?? item.question_title ?? item.questionTitle ?? '无标题';
               // 优先使用 typeLabel，否则调用映射函数
-              const type = item.typeLabel || getQuestionTypeLabel(item.type ?? item.question_type ?? item.questionType ?? '');
+              const normType = normalizeQuestionType(item.type ?? item.question_type ?? item.questionType ?? '');
+              const typeMeta = QUESTION_TYPE_META[normType];
+              const type = item.typeLabel || typeMeta.label;
               const timeValue = item.time ?? item.insert_time ?? item.insertTime ?? 0;
               const id = item.id ?? item.question_id ?? index;
               const answer = item.answer ?? item.correctAnswer ?? item.right_answer ?? '';
               const analysis = item.analysis ?? item.explanation ?? '';
               const options = item.options ?? item.choices ?? [];
-              
-              // 类型映射和样式
-              const typeMapping = {
-                '单选题': { bg: '#e6f7ff', color: '#1890ff', border: '#91d5ff', accent: '#1890ff' },
-                '多选题': { bg: '#f9f0ff', color: '#722ed1', border: '#d3adf7', accent: '#722ed1' },
-                '选择题': { bg: '#e6f7ff', color: '#1890ff', border: '#91d5ff', accent: '#1890ff' },
-                '判断题': { bg: '#f6ffed', color: '#52c41a', border: '#b7eb8f', accent: '#52c41a' },
-                '简答题': { bg: '#fff7e6', color: '#fa8c16', border: '#ffd591', accent: '#fa8c16' },
-                '填空题': { bg: '#fff1f0', color: '#ff4d4f', border: '#ffccc7', accent: '#ff4d4f' },
+
+              // 使用共享常量的样式
+              const typeStyle = {
+                bg: typeMeta.bg,
+                color: typeMeta.color,
+                border: typeMeta.border,
+                accent: typeMeta.color,
               };
-              const typeStyle = typeMapping[type] || { bg: '#f5f5f5', color: '#666', border: '#d9d9d9', accent: '#666' };
-              
-              // 判断是否为选择题
-              const isChoice = type === '选择题' || type === '单选题' || type === '多选题' || type?.toLowerCase().includes('choice');
-              // 判断是否为判断题
-              const isJudge = type === '判断题' || type?.toLowerCase().includes('judge') || type?.toLowerCase().includes('true_false');
-              // 判断是否为简答题
-              const isShortAnswer = type === '简答题' || type?.toLowerCase().includes('short_answer');
-              // 判断是否为填空题
-              const isFillBlank = type === '填空题' || type?.toLowerCase().includes('fill');
+
+              // 判断题型
+              const isChoice = normType === QUESTION_TYPE.SINGLE_CHOICE || normType === QUESTION_TYPE.MULTIPLE_CHOICE;
+              const isJudge = normType === QUESTION_TYPE.TRUE_FALSE;
+              const isShortAnswer = normType === QUESTION_TYPE.SHORT_ANSWER;
+              const isFillBlank = normType === QUESTION_TYPE.FILL_BLANK;
               
               // 判断答案是否正确（用于选择题高亮）
               const isCorrectOption = (_opt, i) => {
@@ -1429,7 +1498,7 @@ const VideoDetailEdit = () => {
                 ...q,
                 id: q.id,
                 title: q.content || q.title || '',
-                typeLabel: getQuestionTypeLabel(q.type),
+                typeLabel: localGetQTypeLabel(q.type),
                 time: 0,
                 segment_id: q.segment_id || 0,
               }));
