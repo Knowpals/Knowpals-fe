@@ -35,7 +35,12 @@ const VideoManagement = () => {
     setLoading(true);
     try {
       const res = await getMyUploadedVideos();
-      setVideoList(res.data?.videos || []);
+      const allVideos = res.data?.videos || [];
+      // 临时：过滤掉标题含"数值分析测试"且 id≠26 的视频
+      const filtered = allVideos.filter(v =>
+        !(v.title?.includes('数值分析测试') && v.video_id !== 26)
+      );
+      setVideoList(filtered);
     } catch (error) {
       message.error(error.message || '获取视频列表失败');
     } finally {
@@ -399,7 +404,7 @@ const VideoManagement = () => {
           ) : null
         }
         closable={processStatus === 'completed' || processStatus === 'failed' || processStatus === 'timeout'}
-        maskClosable={false}
+        mask={{ closable: false }}
       >
         <div style={{ textAlign: 'center', padding: '16px 0' }}>
           <Progress

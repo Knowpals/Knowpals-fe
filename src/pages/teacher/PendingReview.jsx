@@ -18,7 +18,11 @@ const PendingReview = () => {
     try {
       const res = await getReviewVideos();
       // 新版接口直接返回待审核视频列表
-      setPendingVideos(res.data?.videos || []);
+      const allVideos = res.data?.videos || [];
+      const filtered = allVideos.filter(v =>
+        !(v.title?.includes('数值分析测试') && v.video_id !== 26)
+      );
+      setPendingVideos(filtered);
     } catch (error) {
       console.error('获取待审核列表失败:', error);
     } finally {

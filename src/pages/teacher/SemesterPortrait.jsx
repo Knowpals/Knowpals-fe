@@ -208,7 +208,7 @@ export default function SemesterPortrait() {
   const evolutionOption = {
     tooltip: { trigger: 'axis' },
     legend: { data: ['班级平均', '年级基准'], bottom: 0 },
-    grid: { top: 8, left: 8, right: 8, bottom: 30, containLabel: true },
+    grid: { top: 30, left: 8, right: 8, bottom: 30, containLabel: true },
     xAxis: { type: 'category', data: data.evolution.map(e => `第${e.week}周`), axisLabel: { fontSize: 10 } },
     yAxis: { type: 'value', min: 0, max: 100, axisLabel: { fontSize: 10, formatter: '{value}' } },
     series: [
@@ -216,7 +216,7 @@ export default function SemesterPortrait() {
         name: '班级平均', type: 'line', data: data.evolution.map(e => e.avg_mastery), smooth: true,
         lineStyle: { color: '#7c3aed', width: 2.5 }, itemStyle: { color: '#7c3aed' },
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(124,58,237,0.2)' }, { offset: 1, color: 'rgba(124,58,237,0.02)' }] } },
-        markLine: { silent: true, symbol: 'none', data: data.teaching_events.map(te => ({ xAxis: `第${te.week}周`, label: { formatter: te.label, fontSize: 9 }, lineStyle: { color: '#f59e0b', type: 'dashed' } })) },
+        markLine: { silent: true, symbol: 'none', data: data.teaching_events.map(te => ({ xAxis: `第${te.week}周`, label: { formatter: te.label, fontSize: 9, position: 'insideStartTop', distance: 4 }, lineStyle: { color: '#f59e0b', type: 'dashed' } })) },
       },
       {
         name: '年级基准', type: 'line', data: data.evolution.map(e => e.grade_avg), smooth: true,

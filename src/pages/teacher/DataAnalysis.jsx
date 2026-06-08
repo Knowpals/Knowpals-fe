@@ -98,7 +98,9 @@ const DataAnalysis = () => {
   const fetchVideos = async (classId) => {
     try {
       const res = await getVideoTasks(classId);
-      const videoList = res.data?.video_tasks || [];
+      const videoList = (res.data?.video_tasks || []).filter(v =>
+        !(v.title?.includes('数值分析测试') && v.video_id !== 26)
+      );
       setVideos(videoList);
       if (videoList.length > 0) {
         setSelectedVideo(videoList[0].video_id);

@@ -32,7 +32,9 @@ const ClassVideoDetail = () => {
     setLoading(true);
     try {
       const tasksRes = await getVideoTasks(classId);
-      const videoTasks = tasksRes.data?.video_tasks || [];
+      const videoTasks = (tasksRes.data?.video_tasks || []).filter(v =>
+        !(v.title?.includes('数值分析测试') && v.video_id !== 26)
+      );
       setVideos(videoTasks);
       
       // 如果有视频任务但没有指定videoId，使用第一个

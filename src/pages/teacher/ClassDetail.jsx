@@ -72,6 +72,10 @@ const ClassDetail = () => {
       } else if (videoData && typeof videoData === 'object') {
         processedVideos = [videoData];
       }
+      // 临时：过滤掉标题含"数值分析测试"且 id≠26 的视频
+      processedVideos = processedVideos.filter(v =>
+        !(v.title?.includes('数值分析测试') && v.video_id !== 26)
+      );
       
       console.log('处理后的视频列表:', processedVideos);
       console.log('第一个视频的所有字段:', processedVideos[0] ? Object.keys(processedVideos[0]) : '无');
@@ -227,10 +231,12 @@ const ClassDetail = () => {
         )}
       </div>
 
-      {/* 课程知识图谱 */}
-      <div style={{ marginTop: 32, marginBottom: 32 }}>
-        <KnowledgeGraph />
-      </div>
+      {/* 课程知识图谱（仅数值分析班级） */}
+      {parseInt(classId) === 4 && (
+        <div style={{ marginTop: 32, marginBottom: 32 }}>
+          <KnowledgeGraph />
+        </div>
+      )}
 
       {/* 添加学生弹窗 */}
       <Modal
