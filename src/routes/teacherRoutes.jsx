@@ -13,6 +13,7 @@ import VideoDetailEdit from '../pages/teacher/VideoDetailEdit';
 import ClassVideoDetail from '../pages/teacher/ClassVideoDetail';
 import StudentData from '../pages/teacher/StudentData';
 import AIChat from '../pages/teacher/AIChat';
+import SemesterPortrait from '../pages/teacher/SemesterPortrait';
 
 const teacherRoutes = [
   { path: '/home', element: <Home /> },
@@ -20,6 +21,7 @@ const teacherRoutes = [
   { path: '/pending-review', element: <PendingReview /> },
   { path: '/my', element: <MyProfile /> },
   { path: '/data-analysis', element: <DataAnalysis /> },
+  { path: '/semester-portrait/:classId', element: <SemesterPortrait /> },
   { path: '/analysis-video', element: <AnalysisVideoDetail /> },
   { path: '/class-management', element: <ClassManagement /> },
   { path: '/class-detail/:classId', element: <ClassDetail /> },

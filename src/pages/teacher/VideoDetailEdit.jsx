@@ -111,7 +111,7 @@ const VideoDetailEdit = () => {
 
 
   // 题目类型中文映射（使用共享常量）
-  const localGetQTypeLabel = (type) => localGetQTypeLabel(type);
+  const localGetQTypeLabel = (type) => getQuestionTypeLabel(type);
   const localGetQTypeColor = (type) => QUESTION_TYPE_META[normalizeQuestionType(type)]?.color || '#666';
   const localGetQTypeBg = (type) => QUESTION_TYPE_META[normalizeQuestionType(type)]?.bg || '#f5f5f5';
   
@@ -138,13 +138,22 @@ const VideoDetailEdit = () => {
         targetId, matchedVideo, rawStatus, detailData.status);
       setVideoData(detailData);
 
-      // 从 getVideoDetail 提取题目（segments + top-level questions）
+      // 合并 segments 中的题目 + 顶层 questions，按 id 去重
       const segments = detailData?.segments || [];
-      let questions = [];
-      if (segments.length > 0) {
-        questions = segments
-          .filter(seg => seg.question && Object.keys(seg.question).length > 0)
-          .map(seg => ({
+      const topQuestions = detailData?.questions || [];
+      const seenIds = new Set();
+      const allQuestions = [];
+
+      console.log('=== 互动点提取 ===');
+      console.log('segments 总数:', segments.length);
+      console.log('topQuestions 总数:', topQuestions.length);
+
+      // 先从 segments 提取（有精确时间位置）
+      segments.forEach(seg => {
+        console.log('  segment id:', seg.id, 'question:', seg.question?.id, seg.question?.content?.substring(0, 20));
+        if (seg.question && Object.keys(seg.question).length > 0 && !seenIds.has(seg.question.id)) {
+          seenIds.add(seg.question.id);
+          allQuestions.push({
             ...seg.question,
             id: seg.question.id,
             title: seg.question.content || seg.question.title || '',
@@ -152,22 +161,27 @@ const VideoDetailEdit = () => {
             typeLabel: localGetQTypeLabel(seg.question.type),
             time: seg.start ? seg.start / 1000 : 0,
             segment_id: seg.id,
-          }));
-      }
-      if (questions.length === 0) {
-        const topQuestions = detailData?.questions || [];
-        questions = topQuestions.map(q => ({
-          ...q,
-          id: q.id,
-          title: q.content || q.title || '',
-          typeLabel: localGetQTypeLabel(q.type),
-          time: 0,
-          segment_id: q.segment_id || 0,
-        }));
-      }
+          });
+        }
+      });
 
-      console.log('题目列表:', questions);
-      setPointList(questions);
+      // 再从顶层 questions 补充（segment 里没有的题，按 id 去重）
+      topQuestions.forEach(q => {
+        if (!seenIds.has(q.id)) {
+          seenIds.add(q.id);
+          allQuestions.push({
+            ...q,
+            id: q.id,
+            title: q.content || q.title || '',
+            typeLabel: localGetQTypeLabel(q.type),
+            time: 0,
+            segment_id: q.segment_id || 0,
+          });
+        }
+      });
+
+      console.log('合并后的互动点 (共', allQuestions.length, '个):', allQuestions);
+      setPointList(allQuestions);
     } catch (error) {
       console.error('获取视频详情失败:', error);
       message.error(error.message || '获取视频详情失败');
@@ -219,10 +233,14 @@ const VideoDetailEdit = () => {
     }
   };
 
-  // 打开「下发到班级」弹窗
-  const handleOpenAssignClass = () => {
+  // 打开「发布到班级」弹窗
+  const handleOpenPublishModal = () => {
     if (!isValidVideoId) {
       message.error('视频ID无效');
+      return;
+    }
+    if (!videoData?.url) {
+      message.error('视频未上传，无法发布');
       return;
     }
     fetchClassList();
@@ -528,26 +546,14 @@ const VideoDetailEdit = () => {
           </Button>
         )}
         <div style={{ marginLeft: 'auto' }}>
-          {(videoData?.status === 'pending' || videoData?.status === 'reviewing' || !videoData?.status) && (
-            <Button
-              type="primary"
-              icon={<UploadOutlined />}
-              style={{ background: '#722ed1', borderColor: '#722ed1' }}
-              onClick={handleOpenAssignClass}
-            >
-              发布到班级
-            </Button>
-          )}
-          {videoData?.status === 'published' && (
-            <Button
-              type="primary"
-              icon={<UploadOutlined />}
-              style={{ background: '#fa8c16', borderColor: '#fa8c16' }}
-              onClick={handleOpenAssignClass}
-            >
-              追加下发
-            </Button>
-          )}
+          <Button
+            type="primary"
+            icon={<UploadOutlined />}
+            style={{ background: '#722ed1', borderColor: '#722ed1' }}
+            onClick={handleOpenPublishModal}
+          >
+            {videoData?.status === 'published' ? '追加下发' : '发布到班级'}
+          </Button>
         </div>
       </div>
 
