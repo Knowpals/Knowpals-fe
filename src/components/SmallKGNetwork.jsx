@@ -139,7 +139,7 @@ function normalizeGraph(raw) {
       else if (nameToId[tgt]) tgt = nameToId[tgt];
       return {
         source: src, target: tgt,
-        label: { show: true, fontSize: 9, color: '#999', formatter: rel !== 'default' ? rel : '', distance: 5 },
+        label: { show: false },
         lineStyle: { color: style.color, width: style.width, type: style.type, curveness: 0.2, opacity: 0.6 },
         _relation: rel, _label: style.label,
       };
