@@ -49,8 +49,18 @@ request.interceptors.response.use(
       const { status, data } = error.response;
       console.error('请求错误:', status, data);
       if (status === 401) {
-        localStorage.removeItem('token');
-        window.location.href = '/';
+        // 计数防御：单个 401 可能是浏览器缓存重定向导致丢失 Authorization
+        // 只有短时间内累积 3 次才判定为 token 真正过期
+        if (!window.__401count) window.__401count = 0;
+        window.__401count++;
+        if (window.__401count >= 3) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('role');
+          localStorage.removeItem('userInfo');
+          window.location.href = '/';
+        }
+        clearTimeout(window.__401timer);
+        window.__401timer = setTimeout(() => { window.__401count = 0; }, 2000);
       }
       // 保留完整的错误对象，包含 response 信息
       return Promise.reject({

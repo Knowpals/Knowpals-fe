@@ -5,7 +5,7 @@ import ReactECharts from 'echarts-for-react';
 import MasteryBar from '../../components/MasteryBar';
 import BackArrow from '../../components/BackArrow';
 import AIFloatButton from '../../components/AIFloatButton';
-import { getLearningAnalysis } from '../../services/studentApi';
+import request from '../../utils/request';
 import { injectStyles } from '../../utils/injectStyles';
 import { QUESTION_TYPE, normalizeQuestionType, QUESTION_TYPE_META } from '../../constants/questionTypes';
 import '../../utils/sharedPageStyles';
@@ -519,12 +519,120 @@ export default function StudentLearningAnalysis() {
   const loadAnalysis = async () => {
     setLoading(true);
     try {
-      const res = await getLearningAnalysis({ video_id: videoId, class_id: classId });
-      if ((res.code === 0 || res.code === 200) && res.data) {
-        setAnalysis(res.data);
+      // 并行请求：学情报告 + 学习统计（行为数据）
+      const [reportRes, statRes] = await Promise.all([
+        request.get('/agent/report', { params: { video_id: videoId } }),
+        request.get(`/stat/student/${videoId}`),
+      ]);
+      console.log('📊 /agent/report:', JSON.stringify(reportRes, null, 2));
+      console.log('📊 /stat/student:', JSON.stringify(statRes, null, 2));
+
+      const reportOk = (reportRes.code === 0 || reportRes.code === 200) && reportRes.data;
+      const statOk = (statRes.code === 0 || statRes.code === 200) && statRes.data;
+
+      if (reportOk || statOk) {
+        const rpt = reportOk ? reportRes.data : {};
+        const stat = statOk ? statRes.data : {};
+
+        // ===== 从 /agent/report 解析 =====
+        // 结构: { items: [{knowledge_id, mastery(0-1), summary, weakness[], behavior_pattern[], trend, recommended_segments}], overall_summary }
+        const items = Array.isArray(rpt.items) ? rpt.items : [];
+
+        // 辅助：mastery 可能 0-1 也可能 0-100，统一归到 0-100
+        const toRate = (v) => {
+          if (typeof v !== 'number') return 50;
+          return Math.round(v > 1 ? v : v * 100);
+        };
+
+        // 知识点掌握度 → {name, rate(0-100)}
+        const knowledge_points = items.map(it => ({
+          name: it.knowledge_id || '未知',
+          rate: toRate(it.mastery),
+        }));
+
+        // 平均 mastery → score
+        const avgMastery = items.length > 0
+          ? items.reduce((s, it) => s + toRate(it.mastery), 0) / items.length
+          : 0;
+        const score = Math.round(avgMastery);
+
+        // 评级
+        let grade = 'D';
+        if (score >= 90) grade = 'S';
+        else if (score >= 80) grade = 'A';
+        else if (score >= 65) grade = 'B';
+        else if (score >= 50) grade = 'C';
+
+        // 薄弱点：mastery < 60(百分制) 的
+        const weaknesses = items
+          .filter(it => toRate(it.mastery) < 60)
+          .map(it => ({
+            topic: it.knowledge_id || '未知',
+            desc: it.summary || `掌握度 ${toRate(it.mastery)}%`,
+            rate: toRate(it.mastery),
+          }));
+
+        // 综合评价
+        const evaluation = rpt.overall_summary
+          || items.map(it => it.summary).filter(Boolean).join('；')
+          || demoAnalysis.evaluation;
+
+        // ===== 从 /stat/student 解析行为数据 =====
+        let studyMin = demoAnalysis.study_time_min;
+        let correctRate = demoAnalysis.correct_rate;
+        let coverage = demoAnalysis.knowledge_coverage;
+        let behaviorRecords = demoAnalysis.behavior_records;
+
+        if (statOk) {
+          // 学习时长
+          const watchSec = stat.time_cost || stat.watch_time || 0;
+          studyMin = Math.round(watchSec / 60) || demoAnalysis.study_time_min;
+
+          // 正确率
+          if (stat.correct_rate != null) {
+            correctRate = stat.correct_rate > 1 ? stat.correct_rate / 100 : stat.correct_rate;
+          }
+
+          // 知识覆盖
+          const statKps = stat.knowledge_points || stat.knowledge || [];
+          if (statKps.length > 0) {
+            coverage = statKps.length / 12; // 粗略估算
+          }
+
+          // 行为记录
+          behaviorRecords = {
+            total_sessions: stat.session_count || stat.total_sessions || demoAnalysis.behavior_records.total_sessions,
+            avg_session_min: stat.avg_session_min || (studyMin > 0 ? Math.round(studyMin / Math.max(stat.session_count || 1, 1)) : demoAnalysis.behavior_records.avg_session_min),
+            pause_count: stat.pause_count ?? demoAnalysis.behavior_records.pause_count,
+            replay_count: stat.replay_count ?? demoAnalysis.behavior_records.replay_count,
+            answer_speed_sec: stat.answer_speed_sec || stat.avg_answer_time || demoAnalysis.behavior_records.answer_speed_sec,
+            peak_study_time: stat.peak_study_time || stat.peak_time || demoAnalysis.behavior_records.peak_study_time,
+            completion_curve: Array.isArray(stat.completion_curve) && stat.completion_curve.length > 0
+              ? stat.completion_curve.map(p => ({ day: p.day || p.date || '', rate: p.rate ?? p.value ?? 0 }))
+              : demoAnalysis.behavior_records.completion_curve,
+          };
+        }
+
+        setAnalysis({
+          ...demoAnalysis,
+          score,
+          grade,
+          evaluation,
+          study_time_min: studyMin,
+          correct_rate: correctRate,
+          knowledge_coverage: coverage,
+          knowledge_points: knowledge_points.length > 0 ? knowledge_points : demoAnalysis.knowledge_points,
+          weaknesses: weaknesses.length > 0 ? weaknesses : demoAnalysis.weaknesses,
+          suggestion: rpt.overall_summary || demoAnalysis.suggestion,
+          behavior_records: behaviorRecords,
+        });
+        setLoading(false);
         return;
       }
-    } catch (e) { /* fallback to demo */ }
+    } catch (e) {
+      console.error('❌ 请求失败:', e);
+    }
+    console.warn('⚠️ 使用 demo 数据');
     setAnalysis(demoAnalysis);
     setLoading(false);
   };

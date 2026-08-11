@@ -29,21 +29,19 @@ export const getClassProgress = (classId, status) =>
   request.get(`/behavior/class-progress/${classId}/${status}`);
 
 /**
- * 提交答题记录（单个）
+ * 提交答题记录（支持单题/批量，统一用 studentanswers 数组）
  * @param {Object} data
- * @param {number} data.video_id
- * @param {Array} data.studentanswers - [{ question_id, question_type, answer, time_cost }]
+ * @param {number} data.video_id        - 视频ID
+ * @param {Array}  data.studentanswers  - [{ question_id, answer, time_cost }]
  *   answer 格式按题型：
- *   - single_choice: "A"
- *   - multiple_choice: ["A", "C"]
- *   - true_false: "对" | "错"
- *   - fill_blank: "答案1,答案2"
- *   - short_answer: "自由文本"
+ *   - choice / single_choice:  "A"
+ *   - multiple_choice:         ["A", "C"]
+ *   - true_false / judge:      "对" | "错"
+ *   - fill_blank / fill:       "答案1,答案2"
+ *   - short_answer:            "自由文本"
+ * @returns {Object} { results: [{ question_id, is_correct, answer, analysis }] }
  */
 export const submitAnswer = (data) => request.post('/question/answer', data);
-
-/** 学生批量提交答题答案（格式同 submitAnswer） */
-export const submitAnswers = (data) => request.post('/question/answer/batch', data);
 
 // 记录学生视频观看行为（暂停、回放等）
 export const recordBehavior = (data) => request.post('/behavior/record', data);

@@ -5,7 +5,7 @@ import request from '../../utils/request';
 import { injectStyles } from '../../utils/injectStyles';
 import {
   QUESTION_TYPE, QUESTION_TYPE_META, OPTION_LETTERS,
-  normalizeQuestionType, formatOptions, isAnswerCorrect, buildAnswerPayload,
+  normalizeQuestionType, formatOptions, isAnswerCorrect as checkAnswer, buildAnswerPayload,
   normalizeQuestionData,
 } from '../../constants/questionTypes';
 
@@ -397,7 +397,7 @@ const StudentVideoLearning = () => {
     const segmentId = segIdx >= 0 ? interactionNodes[segIdx]?.segmentId : 0;
 
     if ((action === 'pause' || action === 'replay') && record.videoId) {
-      fetchWithAuth('/api/v1/behavior/record', {
+      fetchWithAuth('/behavior/record', {
         method: 'POST',
         body: {
           video_id: record.videoId,
@@ -413,10 +413,10 @@ const StudentVideoLearning = () => {
     const record = studyRecordRef.current;
     if (!record.videoId) return;
     try {
-      const statRes = await fetchWithAuth(`/api/v1/stat/student/${record.videoId}`);
+      const statRes = await fetchWithAuth(`/stat/student/${record.videoId}`);
       if (statRes?.data?.status === 'finished') return;
     } catch (e) { /* ignore */ }
-    fetchWithAuth('/api/v1/behavior/update-progress', {
+    fetchWithAuth('/behavior/update-progress', {
       method: 'POST',
       body: { video_id: record.videoId, current_sec: Math.floor(currentTime) },
     }).catch(() => {});
@@ -602,7 +602,7 @@ const StudentVideoLearning = () => {
     const record = studyRecordRef.current;
     if (!record.videoId) return;
     const durationMs = videoDuration;
-    fetchWithAuth('/api/v1/behavior/update-progress', {
+    fetchWithAuth('/behavior/update-progress', {
       method: 'POST',
       body: { video_id: record.videoId, current_sec: Math.floor(durationMs / 1000) },
     }).catch(() => {});
@@ -653,15 +653,14 @@ const StudentVideoLearning = () => {
     };
 
     try {
-      const res = await fetchWithAuth('/api/v1/question/answer', {
-        method: 'POST',
-        body: {
-          video_id: studyRecordRef.current.videoId,
-          studentanswers: [payload],
-        },
+      const res = await request.post('/question/answer', {
+        video_id: studyRecordRef.current.videoId,
+        studentanswers: [payload],
       });
       if (res && (res.code === 0 || res.code === 200) && res.data?.results?.[0]) {
         const result = res.data.results[0];
+        // 优先使用服务端判题结果
+        if (result.is_correct !== undefined) setIsAnswerCorrect(result.is_correct);
         if (result.analysis) setServerAnalysis(result.analysis);
       }
     } catch (err) {
@@ -696,12 +695,13 @@ const StudentVideoLearning = () => {
       correct = selectedAnswer === qParsedAnswer;
     } else if (qType === QUESTION_TYPE.TRUE_FALSE) {
       // 判断：selectedAnswer 是字母 "A"/"B"，需映射到选项文本 "对"/"错" 再比较
+      const qOptions = currentQuestion?.options || [];
       const selectedOpt = qOptions.find(o => o.letter === selectedAnswer);
       correct = selectedOpt?.text === qParsedAnswer;
     } else if (qType === QUESTION_TYPE.MULTIPLE_CHOICE) {
-      correct = isAnswerCorrect(selectedMultiAnswers, qParsedAnswer || qAnswer, qType);
+      correct = checkAnswer(selectedMultiAnswers, qParsedAnswer || qAnswer, qType);
     } else if (qType === QUESTION_TYPE.FILL_BLANK) {
-      correct = isAnswerCorrect(fillText.trim(), qParsedAnswer || qAnswer, qType);
+      correct = checkAnswer(fillText.trim(), qParsedAnswer || qAnswer, qType);
     } else {
       // short_answer: 只要有输入就视为可提交
       correct = fillText.trim().length > 0;
@@ -831,15 +831,15 @@ const StudentVideoLearning = () => {
       return;
     }
     try {
-      const statRes = await fetchWithAuth(`/api/v1/stat/student/${record.videoId}`);
+      const statRes = await fetchWithAuth(`/stat/student/${record.videoId}`);
       if (statRes?.data?.status !== 'finished') {
-        fetchWithAuth('/api/v1/behavior/update-progress', {
+        fetchWithAuth('/behavior/update-progress', {
           method: 'POST',
           body: { video_id: record.videoId, current_sec: Math.floor(videoRef.current.currentTime) },
         }).catch(() => {});
       }
     } catch (e) {
-      fetchWithAuth('/api/v1/behavior/update-progress', {
+      fetchWithAuth('/behavior/update-progress', {
         method: 'POST',
         body: { video_id: record.videoId, current_sec: Math.floor(videoRef.current.currentTime) },
       }).catch(() => {});

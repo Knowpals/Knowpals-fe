@@ -229,14 +229,13 @@ export function isAnswerCorrect(studentAnswer, correctAnswer, questionType) {
   }
 }
 
-/** 构建提交给后端的答案格式 */
+/** 构建提交给后端的答案格式（对齐 POST /question/answer StudentAnswer schema） */
 export function buildAnswerPayload(questionId, rawAnswer, questionType, timeCost) {
   const type = normalizeQuestionType(questionType);
   const parsed = parseAnswer(rawAnswer, type);
 
   return {
     question_id: questionId,
-    question_type: type,
     answer: parsed,
     time_cost: timeCost || 0,
   };

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spin, message, Progress } from 'antd';
 import BackArrow from '../../components/BackArrow';
 import AIFloatButton from '../../components/AIFloatButton';
-import { getDeepPractice } from '../../services/studentApi';
+import request from '../../utils/request';
 import { injectStyles } from '../../utils/injectStyles';
 import '../../utils/sharedPageStyles';
 
@@ -361,9 +361,50 @@ export default function StudentDeepPractice() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await getDeepPractice({ video_id: videoId, class_id: classId });
-      if ((res.code === 0 || res.code === 200) && res.data?.layers?.length > 0) {
-        setLayers(res.data.layers);
+      const res = await request.post('/agent/quiz', {
+        video_id: String(videoId),
+        class_id: classId,
+        num_questions: 10,
+      });
+      if ((res.code === 0 || res.code === 200) && res.data?.quizzes?.length > 0) {
+        // 按 knowledge_id 分组，每组作为一个 BFS 层级
+        const groupMap = {};
+        res.data.quizzes.forEach(q => {
+          const kid = q.knowledge_id || '综合练习';
+          if (!groupMap[kid]) groupMap[kid] = [];
+          groupMap[kid].push(q);
+        });
+
+        const kidEntries = Object.entries(groupMap);
+        const layers = kidEntries.map(([kid, quizzes], idx) => ({
+          layer: idx + 1,
+          depth: kidEntries.length - idx,
+          knowledge_id: kid,
+          knowledge_name: kid,
+          relation: 'direct',
+          current_mastery: 0.5,
+          threshold: 0.7,
+          status: 'moderate',
+          status_label: '待练习',
+          status_color: '#f59e0b',
+          reason: `知识点「${kid}」的相关练习（共 ${quizzes.length} 题）`,
+          exercises: quizzes.map(q => ({
+            id: q.id || (kid + '_' + idx),
+            type: q.type || 'choice',
+            difficulty: '基础',
+            question: q.question,
+            // 兼容 options 两种格式：[{letter, text}] 或 ["A. text"]
+            options: (q.options || []).map((opt, j) =>
+              typeof opt === 'string'
+                ? { letter: String.fromCharCode(65 + j), text: opt }
+                : { letter: opt.letter || String.fromCharCode(65 + j), text: opt.text || opt }
+            ),
+            answer: q.answer,
+            analysis: q.analysis || '',
+          })),
+        }));
+        setLayers(layers);
+        setLoading(false);
         return;
       }
     } catch (e) { /* fallback to demo */ }

@@ -4,6 +4,7 @@ import { Spin } from 'antd';
 import * as echarts from 'echarts';
 import BackArrow from '../../components/BackArrow';
 import { getStudentPersona } from '../../services/studentApi';
+import request from '../../utils/request';
 import { injectStyles } from '../../utils/injectStyles';
 import '../../utils/sharedPageStyles';
 
@@ -277,13 +278,34 @@ export default function StudentPersona() {
   const loadPersona = async () => {
     setLoading(true);
     try {
-      const res = await getStudentPersona();
-      if ((res.code === 0 || res.code === 200) && res.data) {
-        setPersona(res.data);
-        return;
+      // 并行请求：用户基本信息 + 学情画像
+      const [userRes, personaRes] = await Promise.all([
+        request.get('/user/getUserInfo'),
+        getStudentPersona().catch(() => null),
+      ]);
+      console.log('📊 /user/getUserInfo:', JSON.stringify(userRes, null, 2));
+      console.log('📊 /agent/persona:', JSON.stringify(personaRes, null, 2));
+
+      const userOk = (userRes.code === 0 || userRes.code === 200) && userRes.data;
+      const personaOk = personaRes && (personaRes.code === 0 || personaRes.code === 200) && personaRes.data;
+
+      // 以 demo 为基础，用真实用户信息覆盖 name/email
+      const merged = {
+        ...demoPersona,
+        ...(personaOk ? personaRes.data : {}),
+      };
+
+      if (userOk) {
+        const u = userRes.data;
+        if (u.username) merged.name = u.username;
+        if (u.email) merged.email = u.email;
       }
-    } catch (e) { /* fallback to demo */ }
-    setPersona(demoPersona);
+
+      setPersona(merged);
+    } catch (e) {
+      console.error('❌ 加载画像失败:', e);
+      setPersona(demoPersona);
+    }
     setLoading(false);
   };
 

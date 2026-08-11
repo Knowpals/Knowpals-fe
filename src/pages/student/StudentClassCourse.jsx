@@ -89,6 +89,11 @@ injectStyles('student-class-course', `
     width: 6px; height: 6px; border-radius: 50%;
   }
   .kg-preview-more-v2 { font-size: 11px; color: #9ca3af; margin-top: 8px; }
+  .section-header-v1 {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px 10px; border-bottom: 1px solid #f5f5f5;
+  }
+  .section-title-v1 { font-size: 16px; font-weight: 600; color: #333; }
 `);
 
 function formatDuration(seconds) {
@@ -114,36 +119,49 @@ export default function StudentClassCourse() {
   const loadData = async () => {
     setLoading(true);
     try {
+      // className 从 URL 参数取
       setClassName(searchParams.get('name') || '课程详情');
 
+      // 并行获取全部视频 + 未完成视频
       const [allRes, todoRes] = await Promise.all([
         request.get(`/behavior/class-progress/${classId}/all`),
         request.get(`/behavior/class-progress/${classId}/todo`),
       ]);
 
-      let allTasks = [];
-      let todoCount = 0;
+      const allList = (allRes.code === 0 || allRes.code === 200) && allRes.data?.progress_list
+        ? allRes.data.progress_list
+        : [];
 
-      if ((allRes.code === 0 || allRes.code === 200) && allRes.data?.progress_list) {
-        allTasks = allRes.data.progress_list.map(item => ({
+      const todoList = (todoRes.code === 0 || todoRes.code === 200) && todoRes.data?.progress_list
+        ? todoRes.data.progress_list
+        : [];
+
+      // 差集法：在 todo 列表中的 = pending，否则 = completed
+      const todoIdSet = new Set(todoList.map(item => String(item.video_id)));
+
+      const allTasks = allList.map(item => {
+        const isTodo = todoIdSet.has(String(item.video_id));
+        // progress_percent 可能是 0-1 小数，统一转为 0-100
+        let pct = item.progress_percent || 0;
+        if (pct > 0 && pct <= 1) pct = Math.round(pct * 100);
+
+        return {
           video_id: item.video_id,
-          title: item.title,
-          status: item.status,
-          progress: item.progress_percent || 0,
+          title: item.title || '未命名视频',
+          status: isTodo ? 'pending' : 'completed',
+          progress: isTodo ? pct : 100,
           watch_time: item.watch_time || 0,
           duration: item.duration || 0,
-          deadline: item.deadline,
-        }));
-        localStorage.setItem(`video_list_${classId}`, JSON.stringify(allTasks));
-      }
+          deadline: item.deadline || null,
+        };
+      });
 
-      if ((todoRes.code === 0 || todoRes.code === 200) && todoRes.data?.progress_list) {
-        todoCount = todoRes.data.progress_list.filter(item => (item.progress_percent || 0) < 100).length;
-      }
-
+      localStorage.setItem(`video_list_${classId}`, JSON.stringify(allTasks));
       setTasks(allTasks);
-      const completed = allTasks.filter(t => t.progress >= 100).length;
-      setStats({ completed, pending: todoCount, total: allTasks.length });
+
+      const completed = allTasks.filter(t => t.status === 'completed').length;
+      const pending = allTasks.length - completed;
+      setStats({ completed, pending, total: allTasks.length });
     } catch (error) {
       console.error('加载课程失败:', error);
     } finally {
@@ -168,8 +186,8 @@ export default function StudentClassCourse() {
   };
 
   const goToStudyData = () => {
-    if (!selectedTask || !selectedTask.progress || selectedTask.progress === 0) {
-      alert('您尚未观看此课程，暂无学情报告。请先观看视频课程。');
+    if (!selectedTask || selectedTask.status !== 'completed') {
+      alert('您尚未完成此课程，暂无学情报告。请先完成视频课程。');
       return;
     }
     closeActionModal();
@@ -177,8 +195,8 @@ export default function StudentClassCourse() {
   };
 
   const goToQuizPractice = () => {
-    if (!selectedTask || selectedTask.progress < 100) {
-      alert('请先观看视频课程，解锁个性练习功能。');
+    if (!selectedTask || selectedTask.status !== 'completed') {
+      alert('请先完成视频课程，解锁个性练习功能。');
       return;
     }
     closeActionModal();
@@ -186,8 +204,8 @@ export default function StudentClassCourse() {
   };
 
   const goToLearningAnalysis = () => {
-    if (!selectedTask || !selectedTask.progress || selectedTask.progress === 0) {
-      alert('您尚未观看此课程，暂无学情分析。请先观看视频课程。');
+    if (!selectedTask || selectedTask.status !== 'completed') {
+      alert('您尚未完成此课程，暂无学情分析。请先完成视频课程。');
       return;
     }
     closeActionModal();
@@ -201,8 +219,8 @@ export default function StudentClassCourse() {
   };
 
   const goToDeepPractice = () => {
-    if (!selectedTask || selectedTask.progress < 100) {
-      alert('请先观看视频课程，解锁深度练习功能。');
+    if (!selectedTask || selectedTask.status !== 'completed') {
+      alert('请先完成视频课程，解锁深度练习功能。');
       return;
     }
     closeActionModal();
@@ -269,7 +287,7 @@ export default function StudentClassCourse() {
               <div className="kg-preview-more-v2">共 30+ 个知识点 · 点击上方链接查看完整图谱</div>
             </div>
 
-            {/* Task list - matches H5 class-course.html */}
+            {/* Task list - 待完成 + 已完成 分区 */}
             <div className="course-tasks-scroll-v1">
               {tasks.length === 0 ? (
                 <div className="course-empty-state-v1">
@@ -278,48 +296,100 @@ export default function StudentClassCourse() {
                   <span className="course-empty-text-v1">本班级还没有发布课程</span>
                 </div>
               ) : (
-                <div className="course-tasks-list-v1">
-                  {tasks.map(task => {
-                    const isCompleted = task.progress >= 100;
-                    return (
-                      <div
-                        key={task.video_id}
-                        className={`course-task-item-v1 ${isCompleted ? 'completed' : ''}`}
-                        onClick={() => openActionModal(task)}
-                      >
-                        <div className="course-task-content-v1">
-                          <div className="course-task-header-v1">
-                            <span className="course-task-title-v1">{task.title}</span>
-                            <div className="course-task-badges-v1">
-                              <span className="course-task-badge-v1 type">视频课程</span>
-                              {task.deadline && (
-                                <span className="course-task-badge-v1 deadline">📅 {task.deadline}</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="course-task-details-v1">
-                            <div className="course-task-meta-v1">
-                              <span>⏱️ {formatDuration(task.duration)}</span>
-                            </div>
-                            <div className="course-task-progress-v1">
-                              <div className="course-progress-bar-v1">
-                                <div
-                                  className={`course-progress-fill-v1 ${isCompleted ? 'completed' : ''}`}
-                                  style={{ width: `${task.progress}%` }}
-                                />
+                <>
+                  {/* 待完成 */}
+                  <div className="section-header-v1">
+                    <span className="section-title-v1">⏳ 待完成 ({stats.pending})</span>
+                  </div>
+                  {tasks.filter(t => t.status !== 'completed').length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px 0', color: '#999', fontSize: 14 }}>所有任务已完成 🎉</div>
+                  ) : (
+                    <div className="course-tasks-list-v1">
+                      {tasks.filter(t => t.status !== 'completed').map(task => (
+                        <div
+                          key={task.video_id}
+                          className="course-task-item-v1"
+                          onClick={() => openActionModal(task)}
+                        >
+                          <div className="course-task-content-v1">
+                            <div className="course-task-header-v1">
+                              <span className="course-task-title-v1">{task.title}</span>
+                              <div className="course-task-badges-v1">
+                                <span className="course-task-badge-v1 type">视频课程</span>
+                                {task.deadline && (
+                                  <span className="course-task-badge-v1 deadline">📅 {task.deadline}</span>
+                                )}
                               </div>
-                              <span className="course-progress-text-v1">完成进度 {task.progress}%</span>
+                            </div>
+                            <div className="course-task-details-v1">
+                              <div className="course-task-meta-v1">
+                                <span>⏱️ {formatDuration(task.duration)}</span>
+                              </div>
+                              <div className="course-task-progress-v1">
+                                <div className="course-progress-bar-v1">
+                                  <div
+                                    className="course-progress-fill-v1"
+                                    style={{ width: `${task.progress}%` }}
+                                  />
+                                </div>
+                                <span className="course-progress-text-v1">完成进度 {task.progress}%</span>
+                              </div>
                             </div>
                           </div>
+                          <div className="course-task-status-v1 pending">
+                            <div className="course-status-dot-v1" />
+                            <span>待完成</span>
+                          </div>
                         </div>
-                        <div className={`course-task-status-v1 ${isCompleted ? 'completed' : 'pending'}`}>
-                          <div className={`course-status-dot-v1 ${isCompleted ? 'completed' : ''}`} />
-                          <span>{isCompleted ? '已完成' : '待完成'}</span>
-                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 已完成 */}
+                  {tasks.filter(t => t.status === 'completed').length > 0 && (
+                    <>
+                      <div className="section-header-v1" style={{ marginTop: 12 }}>
+                        <span className="section-title-v1">✅ 已完成 ({stats.completed})</span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="course-tasks-list-v1">
+                        {tasks.filter(t => t.status === 'completed').map(task => (
+                          <div
+                            key={task.video_id}
+                            className="course-task-item-v1 completed"
+                            onClick={() => openActionModal(task)}
+                          >
+                            <div className="course-task-content-v1">
+                              <div className="course-task-header-v1">
+                                <span className="course-task-title-v1">{task.title}</span>
+                                <div className="course-task-badges-v1">
+                                  <span className="course-task-badge-v1 type">视频课程</span>
+                                </div>
+                              </div>
+                              <div className="course-task-details-v1">
+                                <div className="course-task-meta-v1">
+                                  <span>⏱️ {formatDuration(task.duration)}</span>
+                                </div>
+                                <div className="course-task-progress-v1">
+                                  <div className="course-progress-bar-v1">
+                                    <div
+                                      className="course-progress-fill-v1 completed"
+                                      style={{ width: '100%' }}
+                                    />
+                                  </div>
+                                  <span className="course-progress-text-v1">已完成</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="course-task-status-v1 completed">
+                              <div className="course-status-dot-v1 completed" />
+                              <span>已完成</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
               )}
             </div>
           </>
@@ -341,35 +411,35 @@ export default function StudentClassCourse() {
                     <span className="action-modal-desc-v1">进入互动学习</span>
                   </div>
                   <div
-                    className={`action-modal-btn-v1 analysis ${(!selectedTask.progress || selectedTask.progress === 0) ? 'disabled' : ''}`}
+                    className={`action-modal-btn-v1 analysis ${selectedTask.status !== 'completed' ? 'disabled' : ''}`}
                     onClick={goToLearningAnalysis}
                   >
                     <span className="action-modal-icon-v1">📊</span>
                     <span className="action-modal-text-v1">学习分析</span>
                     <span className="action-modal-desc-v1">
-                      {selectedTask.progress > 0 ? '查看分析报告' : '暂无数据'}
+                      {selectedTask.status === 'completed' ? '查看分析报告' : '完成后解锁'}
                     </span>
                   </div>
                 </div>
                 <div className="action-modal-buttons-v2">
                   <div
-                    className={`action-modal-btn-v1 deep ${selectedTask.progress < 100 ? 'disabled' : ''}`}
+                    className={`action-modal-btn-v1 deep ${selectedTask.status !== 'completed' ? 'disabled' : ''}`}
                     onClick={goToDeepPractice}
                   >
                     <span className="action-modal-icon-v1">🔗</span>
                     <span className="action-modal-text-v1">深度练习</span>
                     <span className="action-modal-desc-v1">
-                      {selectedTask.progress >= 100 ? 'BFS追溯练习' : '看完视频解锁'}
+                      {selectedTask.status === 'completed' ? 'BFS追溯练习' : '完成后解锁'}
                     </span>
                   </div>
                   <div
-                    className={`action-modal-btn-v1 practice ${selectedTask.progress < 100 ? 'disabled' : ''}`}
+                    className={`action-modal-btn-v1 practice ${selectedTask.status !== 'completed' ? 'disabled' : ''}`}
                     onClick={goToQuizPractice}
                   >
                     <span className="action-modal-icon-v1">✍️</span>
                     <span className="action-modal-text-v1">个性练习</span>
                     <span className="action-modal-desc-v1">
-                      {selectedTask.progress >= 100 ? '巩固薄弱点' : '看完视频解锁'}
+                      {selectedTask.status === 'completed' ? '巩固薄弱点' : '完成后解锁'}
                     </span>
                   </div>
                   <div className="action-modal-btn-v1 smallkg" onClick={goToSmallKG}>
@@ -378,7 +448,7 @@ export default function StudentClassCourse() {
                     <span className="action-modal-desc-v1">查看知识结构</span>
                   </div>
                 </div>
-                {selectedTask.progress > 0 && (
+                {selectedTask.status === 'completed' && selectedTask.progress > 0 && (
                   <div className="action-modal-progress-v1">
                     <span>当前进度：</span>
                     <span className="action-modal-progress-value-v1">{selectedTask.progress}%</span>
