@@ -39,27 +39,11 @@ const ClassDetail = () => {
       ]);
       setClassInfo(infoRes.data?.class_info || {});
       let studentList = studentsRes.data?.students || [];
-
-      // 数值分析班级：注入 demo 学生用于数据展示
-      if ((infoRes.data?.class_info?.class_name || '').includes('数值分析')) {
-        const hasDemo = studentList.some(s => s.id === 'demo-1');
-        if (!hasDemo) {
-          studentList = [
-            {
-              id: 'demo-1',
-              username: '张同学(示例)',
-              email: 'zhang@example.com',
-            },
-            ...studentList,
-          ];
-        }
-      }
-
       setStudents(studentList);
       // 兼容：后端可能返回数组或单个对象
       const videoData = videosRes.data;
       console.log('班级视频数据:', videoData);
-      
+
       // 处理视频任务数据，可能的结构：
       // 1. video_tasks 数组
       // 2. 直接是视频数组
@@ -72,14 +56,10 @@ const ClassDetail = () => {
       } else if (videoData && typeof videoData === 'object') {
         processedVideos = [videoData];
       }
-      // 临时：过滤掉标题含"数值分析测试"且 id≠26 的视频
-      processedVideos = processedVideos.filter(v =>
-        !(v.title?.includes('数值分析测试') && v.video_id !== 26)
-      );
-      
+
       console.log('处理后的视频列表:', processedVideos);
       console.log('第一个视频的所有字段:', processedVideos[0] ? Object.keys(processedVideos[0]) : '无');
-      
+
       setVideos(processedVideos);
     } catch (error) {
       message.error(error.message || '获取数据失败');
@@ -136,7 +116,7 @@ const ClassDetail = () => {
             type="link"
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => navigate(`/student-data/${record.id}`)}
+            onClick={() => navigate(`/student-data/${record.id}?class_id=${classId}`)}
           >
             查看个人学习数据
           </Button>

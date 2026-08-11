@@ -23,12 +23,9 @@ const Home = () => {
         getMyCreatedClasses(),
       ]);
       const allVideos = videoRes.data?.videos || [];
-      const filtered = allVideos.filter(v =>
-        !(v.title?.includes('数值分析测试') && v.video_id !== 26)
-      );
-      setVideoList(filtered);
+      setVideoList(allVideos);
       // 待审核数量从视频列表中筛选
-      const pendingVideos = (videoRes.data?.videos || []).filter(
+      const pendingVideos = allVideos.filter(
         (v) => v.status === 'pending' || v.status === 'reviewing'
       );
       setPendingCount(pendingVideos.length);

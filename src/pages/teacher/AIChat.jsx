@@ -28,10 +28,7 @@ const AIChat = () => {
     try {
       const res = await getMyUploadedVideos();
       const allVideos = res.data?.videos || [];
-      const filtered = allVideos.filter(v =>
-        !(v.title?.includes('数值分析测试') && v.video_id !== 26)
-      );
-      setVideos(filtered);
+      setVideos(allVideos);
     } catch (error) {
       console.error('获取视频列表失败:', error);
     }

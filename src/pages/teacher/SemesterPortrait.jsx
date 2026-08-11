@@ -272,7 +272,7 @@ export default function SemesterPortrait() {
     { title: '最后活跃', dataIndex: 'last_active', key: 'active', width: 90, render: (v) => <span style={{ fontSize: 12, color: '#9ca3af' }}>{v}</span> },
     { title: '操作', key: 'action', width: 140, render: (_, r) => (
       <div style={{ display: 'flex', gap: 4 }}>
-        <Button size="small" type="link" onClick={() => navigate(`/student-data/${r.student_id}`)}>查看详情</Button>
+        <Button size="small" type="link" onClick={() => navigate(`/student-data/${r.student_id}?class_id=${classId}`)}>查看详情</Button>
         <Button size="small" type="link" style={{ color: '#ef4444' }}>推送补救</Button>
       </div>
     )},
@@ -294,7 +294,7 @@ export default function SemesterPortrait() {
   );
 
   return (
-    <MainLayout pageTitle={`课程学期画像 · 数值分析(${classId || 2})班`} showBack>
+    <MainLayout pageTitle={`课程学期画像 · 班级 #${classId}`} showBack>
       <div className="sp-page">
         <div className="sp-content">
 

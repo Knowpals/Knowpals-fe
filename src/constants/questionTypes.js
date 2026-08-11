@@ -31,6 +31,7 @@ export const QUESTION_TYPE_META = {
     hasOptions: true,
     multiAnswer: false,
     apiType: 'single_choice',
+    backendType: 'choice',        // 后端 ReviewAddReq 接受的 type 枚举值
   },
   [QUESTION_TYPE.MULTIPLE_CHOICE]: {
     label: '多选题',
@@ -45,6 +46,7 @@ export const QUESTION_TYPE_META = {
     hasOptions: true,
     multiAnswer: true,
     apiType: 'multiple_choice',
+    backendType: 'choice',        // 后端统一用 choice 表示选择题
   },
   [QUESTION_TYPE.TRUE_FALSE]: {
     label: '判断题',
@@ -59,6 +61,7 @@ export const QUESTION_TYPE_META = {
     hasOptions: false,
     multiAnswer: false,
     apiType: 'true_false',
+    backendType: 'judge',         // 后端用 judge 表示判断题
     presetOptions: ['对', '错'],
   },
   [QUESTION_TYPE.FILL_BLANK]: {
@@ -74,6 +77,7 @@ export const QUESTION_TYPE_META = {
     hasOptions: false,
     multiAnswer: false,
     apiType: 'fill_blank',
+    backendType: 'fill',          // 后端用 fill 表示填空题
   },
   [QUESTION_TYPE.SHORT_ANSWER]: {
     label: '简答题',
@@ -88,12 +92,28 @@ export const QUESTION_TYPE_META = {
     hasOptions: false,
     multiAnswer: false,
     apiType: 'short_answer',
+    backendType: 'subjective',    // 后端用 subjective 表示简答题
   },
 };
 
 // ==================== 选项字母 ====================
 
 export const OPTION_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+// ==================== 后端类型映射 ====================
+
+/**
+ * 将前端 QUESTION_TYPE 枚举值转换为后端接口接受的 type 值
+ * 后端 ReviewAddReq.type 仅接受 choice | fill | judge，
+ * 简答题映射为 subjective（后端 Question 模型实际支持）。
+ *
+ * @param {string} frontendType - QUESTION_TYPE 枚举值
+ * @returns {string} 后端兼容的类型字符串
+ */
+export function toBackendType(frontendType) {
+  const meta = QUESTION_TYPE_META[frontendType];
+  return meta?.backendType || 'subjective';
+}
 
 // ==================== 工具函数 ====================
 
@@ -102,19 +122,23 @@ export function normalizeQuestionType(rawType) {
   if (!rawType) return QUESTION_TYPE.SINGLE_CHOICE;
   const t = String(rawType).toLowerCase().trim();
   const aliasMap = {
+    // 选择题
     'choice': QUESTION_TYPE.SINGLE_CHOICE,
     'single': QUESTION_TYPE.SINGLE_CHOICE,
     'single_choice': QUESTION_TYPE.SINGLE_CHOICE,
     'multiple': QUESTION_TYPE.MULTIPLE_CHOICE,
     'multi_choice': QUESTION_TYPE.MULTIPLE_CHOICE,
     'multiple_choice': QUESTION_TYPE.MULTIPLE_CHOICE,
+    // 判断题
     'judge': QUESTION_TYPE.TRUE_FALSE,
     'true_false': QUESTION_TYPE.TRUE_FALSE,
     'bool': QUESTION_TYPE.TRUE_FALSE,
+    // 填空题
     'fill': QUESTION_TYPE.FILL_BLANK,
     'fill_blank': QUESTION_TYPE.FILL_BLANK,
     'fill_in': QUESTION_TYPE.FILL_BLANK,
     'blank': QUESTION_TYPE.FILL_BLANK,
+    // 简答题（含后端可能返回的变体）
     'short': QUESTION_TYPE.SHORT_ANSWER,
     'short_answer': QUESTION_TYPE.SHORT_ANSWER,
     'qa': QUESTION_TYPE.SHORT_ANSWER,

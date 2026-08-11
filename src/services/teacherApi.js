@@ -48,11 +48,9 @@ export const deleteQuestion = (questionId) => request.delete(`/question/review/$
 // 老师查看待审核视频列表（status=processing 的视频）
 export const getReviewVideos = () => request.get('/question/review/videos');
 
-// AI生成课后习题（旧版）
+// AI生成课后习题（旧版，已废弃，请使用 agentQuiz）
+// @deprecated 保留仅作 fallback 兼容，VideoDetailEdit 的 AI 生成失败时会回退到此接口
 export const generateQuestions = (videoId) => request.get(`/question/generate/${videoId}`);
-
-// 学生批量提交答题答案（新版路径）
-export const submitAnswer = (data) => request.post('/question/answer', data);
 
 // ==================== 视频审核与发布（新版） ====================
 
@@ -84,7 +82,8 @@ export const getReport = (params) => request.get('/agent/report', { params });
 // ==================== 统计分析相关 ====================
 
 // 获取班级整体学情统计
-export const getClassStat = (data) => request.get('/stat/class', { data });
+// 注意：后端定义为 GET + JSON body（非标准），已改为 query params 传递 class_id / video_id
+export const getClassStat = (params) => request.get('/stat/class', { params });
 
 // 获取学生个人学情统计
 export const getStudentStat = (videoId) => request.get(`/stat/student/${videoId}`);

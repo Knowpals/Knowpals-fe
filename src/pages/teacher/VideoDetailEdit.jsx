@@ -272,6 +272,9 @@ const VideoDetailEdit = () => {
   // 打开编辑互动点弹窗
   const handleOpenEditPoint = (item) => {
     setCurrentPoint(item);
+    // 根据互动点类型设置 questionType（统一为 QUESTION_TYPE 常量）
+    const normType = normalizeQuestionType(item.type ?? item.question_type ?? item.questionType ?? '');
+    setQuestionType(normType);
     setEditModalOpen(true);
   };
 
@@ -331,6 +334,36 @@ const VideoDetailEdit = () => {
     }
   };
 
+  // 从后端刷新互动点列表（add / update 后统一使用）
+  const refreshPointList = async () => {
+    const res = await getVideoDetail(videoId);
+    const rd = res.data;
+    const segs = rd?.segments || [];
+    // 优先从分段中提取题目（含时间戳信息）
+    let freshQ = segs
+      .filter(s => s.question && Object.keys(s.question).length > 0)
+      .map(s => ({
+        ...s.question,
+        id: s.question.id,
+        title: s.question.content || s.question.title || '',
+        typeLabel: localGetQTypeLabel(s.question.type),
+        time: s.start ? s.start / 1000 : 0,
+        segment_id: s.id,
+      }));
+    // 如果分段没有题目，回退到顶层 questions 数组
+    if (freshQ.length === 0) {
+      freshQ = (rd?.questions || []).map(q => ({
+        ...q,
+        id: q.id,
+        title: q.content || q.title || '',
+        typeLabel: localGetQTypeLabel(q.type),
+        time: q.time || q.insert_time || q.insertTime || 0,
+        segment_id: q.segment_id || 0,
+      }));
+    }
+    setPointList(freshQ);
+  };
+
   // 新增互动点提交（调用后端接口）
   const handleAddQuestion = async () => {
     const meta = QUESTION_TYPE_META[questionType];
@@ -363,7 +396,7 @@ const VideoDetailEdit = () => {
       const apiData = {
         video_id: parseInt(videoId),
         content: formData.title,
-        type: meta.apiType,
+        type: meta.backendType,
         answer: answer,
         time_ms: (parseInt(formData.insertTime) || 0) * 1000,
         analysis: formData.analysis,
@@ -374,17 +407,7 @@ const VideoDetailEdit = () => {
       setIsAddModalOpen(false);
       setFormData({ title: '', insertTime: '', options: ['', '', '', ''], correctAnswer: '', analysis: '' });
       setMultiAnswer([]);
-      // 刷新题目列表
-      const refreshRes = await getVideoDetail(videoId);
-      const rd = refreshRes.data;
-      const segs = rd?.segments || [];
-      let freshQ = segs
-        .filter(s => s.question && Object.keys(s.question).length > 0)
-        .map(s => ({ ...s.question, id: s.question.id, title: s.question.content || s.question.title || '', typeLabel: localGetQTypeLabel(s.question.type), time: s.start ? s.start / 1000 : 0, segment_id: s.id }));
-      if (freshQ.length === 0) {
-        freshQ = (rd?.questions || []).map(q => ({ ...q, id: q.id, title: q.content || q.title || '', typeLabel: localGetQTypeLabel(q.type), time: 0, segment_id: q.segment_id || 0 }));
-      }
-      setPointList(freshQ);
+      await refreshPointList();
     } catch (error) {
       message.error(error.message || '添加失败');
     }
@@ -1372,13 +1395,17 @@ const VideoDetailEdit = () => {
           <Text strong>题目类型：</Text>
           <Select
             value={questionType}
-            onChange={setQuestionType}
+            onChange={(val) => {
+              setQuestionType(val);
+              setMultiAnswer([]);
+            }}
             style={{ width: '100%', marginTop: 8 }}
           >
-            <Option value="选择题">选择题</Option>
-            <Option value="判断题">判断题</Option>
-            <Option value="简答题">简答题</Option>
-            <Option value="填空题">填空题</Option>
+            <Option value={QUESTION_TYPE.SINGLE_CHOICE}>单选题</Option>
+            <Option value={QUESTION_TYPE.MULTIPLE_CHOICE}>多选题</Option>
+            <Option value={QUESTION_TYPE.TRUE_FALSE}>判断题</Option>
+            <Option value={QUESTION_TYPE.FILL_BLANK}>填空题</Option>
+            <Option value={QUESTION_TYPE.SHORT_ANSWER}>简答题</Option>
           </Select>
         </div>
 
@@ -1403,7 +1430,7 @@ const VideoDetailEdit = () => {
           />
         </div>
 
-        {questionType === '选择题' && (
+        {(questionType === QUESTION_TYPE.SINGLE_CHOICE || questionType === QUESTION_TYPE.MULTIPLE_CHOICE) && (
           <div style={{ marginBottom: 16 }}>
             <Text strong>选项：</Text>
             {['A', 'B', 'C', 'D'].map((opt, index) => (
@@ -1420,22 +1447,34 @@ const VideoDetailEdit = () => {
               />
             ))}
             <div style={{ marginTop: 16 }}>
-              <Text strong>正确答案：</Text>
-              <Select
-                placeholder="选择正确答案"
-                value={formData.correctAnswer || undefined}
-                onChange={(val) => setFormData({ ...formData, correctAnswer: val })}
-                style={{ width: '100%', marginTop: 8 }}
-              >
-                {['A', 'B', 'C', 'D'].map(opt => (
-                  <Option key={opt} value={opt}>{opt}. {formData.options[['A', 'B', 'C', 'D'].indexOf(opt)] || `选项${opt}`}</Option>
-                ))}
-              </Select>
+              <Text strong>正确答案{questionType === QUESTION_TYPE.MULTIPLE_CHOICE ? '（可多选）' : ''}：</Text>
+              {questionType === QUESTION_TYPE.SINGLE_CHOICE ? (
+                <Select
+                  placeholder="选择正确答案"
+                  value={formData.correctAnswer || undefined}
+                  onChange={(val) => setFormData({ ...formData, correctAnswer: val })}
+                  style={{ width: '100%', marginTop: 8 }}
+                >
+                  {['A', 'B', 'C', 'D'].map(opt => (
+                    <Option key={opt} value={opt}>{opt}. {formData.options[['A', 'B', 'C', 'D'].indexOf(opt)] || `选项${opt}`}</Option>
+                  ))}
+                </Select>
+              ) : (
+                <Checkbox.Group
+                  value={multiAnswer}
+                  onChange={setMultiAnswer}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}
+                >
+                  {['A', 'B', 'C', 'D'].map(opt => (
+                    <Checkbox key={opt} value={opt}>{opt}. {formData.options[['A', 'B', 'C', 'D'].indexOf(opt)] || `选项${opt}`}</Checkbox>
+                  ))}
+                </Checkbox.Group>
+              )}
             </div>
           </div>
         )}
 
-        {questionType === '判断题' && (
+        {questionType === QUESTION_TYPE.TRUE_FALSE && (
           <div style={{ marginBottom: 16 }}>
             <Text strong>正确答案：</Text>
             <Select
@@ -1450,7 +1489,7 @@ const VideoDetailEdit = () => {
           </div>
         )}
 
-        {(questionType === '简答题' || questionType === '填空题') && (
+        {(questionType === QUESTION_TYPE.SHORT_ANSWER || questionType === QUESTION_TYPE.FILL_BLANK) && (
           <div style={{ marginBottom: 16 }}>
             <Text strong>参考答案：</Text>
             <TextArea
@@ -1486,29 +1525,20 @@ const VideoDetailEdit = () => {
             }
             try {
               const pointId = currentPoint?.id || currentPoint?.question_id;
+              // 多选题答案用数组，其他用字符串
+              const answer = questionType === QUESTION_TYPE.MULTIPLE_CHOICE
+                ? multiAnswer
+                : formData.correctAnswer;
               const apiData = {
                 questionID: pointId,
                 content: formData.title,
-                type: questionType === '选择题' ? 'choice'
-                  : questionType === '判断题' ? 'judge'
-                  : questionType === '填空题' ? 'fill'
-                  : 'subjective',
-                answer: formData.correctAnswer,
+                type: QUESTION_TYPE_META[questionType]?.backendType || 'subjective',
+                answer: answer,
                 analysis: formData.analysis,
-                options: questionType === '选择题' ? formData.options.filter(o => o) : undefined,
+                options: (questionType === QUESTION_TYPE.SINGLE_CHOICE || questionType === QUESTION_TYPE.MULTIPLE_CHOICE) ? formData.options.filter(o => o) : undefined,
               };
               await updateQuestion(pointId, apiData);
-              // 刷新题目列表
-              const reviewRes = await getReviewQuestions(videoId);
-              const freshQuestions = (reviewRes.data?.questions || []).map(q => ({
-                ...q,
-                id: q.id,
-                title: q.content || q.title || '',
-                typeLabel: localGetQTypeLabel(q.type),
-                time: 0,
-                segment_id: q.segment_id || 0,
-              }));
-              setPointList(freshQuestions);
+              await refreshPointList();
               setEditModalOpen(false);
               setFormData({ title: '', insertTime: '', options: ['', '', '', ''], correctAnswer: '', analysis: '' });
               message.success('互动点已更新');

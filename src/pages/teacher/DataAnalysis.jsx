@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Select, Button, Spin } from 'antd';
+import { Select, Button, Spin, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
 import MainLayout from '../../layouts/TeacherLayout';
@@ -98,9 +98,7 @@ const DataAnalysis = () => {
   const fetchVideos = async (classId) => {
     try {
       const res = await getVideoTasks(classId);
-      const videoList = (res.data?.video_tasks || []).filter(v =>
-        !(v.title?.includes('数值分析测试') && v.video_id !== 26)
-      );
+      const videoList = res.data?.video_tasks || [];
       setVideos(videoList);
       if (videoList.length > 0) {
         setSelectedVideo(videoList[0].video_id);
@@ -190,7 +188,10 @@ const DataAnalysis = () => {
               type="primary"
               ghost
               style={{ marginLeft: 'auto', borderColor: '#7c3aed', color: '#7c3aed' }}
-              onClick={() => navigate(`/semester-portrait/${selectedClass || 1}`)}
+              onClick={() => {
+                if (!selectedClass) { message.warning('请先选择班级'); return; }
+                navigate(`/semester-portrait/${selectedClass}`);
+              }}
             >
               学期画像
             </Button>

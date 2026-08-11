@@ -176,7 +176,6 @@ const ClassManagement = () => {
               <Button onClick={() => {
                 setIsModalOpen(false);
                 form.resetFields();
-                setInviteCode('');
               }}>
                 取消
               </Button>
